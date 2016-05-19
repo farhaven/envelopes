@@ -31,8 +31,8 @@
 					<form class="pure-form" action="/update" method="post">
 						<input type="hidden" name="env-name" value="{{ .Name }}">
 						<td><input type="text" size="13" name="env-new-name" value="{{ .Name }}"></td>
-						<td><input type="number" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
-						<td><input type="number" name="env-target" value="{{ prettyDisplay .Target }}"></td>
+						<td><input type="number" step="any" min="0" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
+						<td><input type="number" step="any" min="0" name="env-target" value="{{ prettyDisplay .Target }}"></td>
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
 						<td><button type="submit" class="pure-button pure-button-primary">U</button></td>
 					</form>
