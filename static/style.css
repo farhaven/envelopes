@@ -1,0 +1,11 @@
+div.e-container {
+	max-width: 80em;
+	margin: auto;
+	padding: 1em;
+}
+
+div.e-box {
+	border: thin solid black;
+	margin: 1em;
+	padding: 0.2em;
+}

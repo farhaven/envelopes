@@ -1,30 +1,38 @@
 package main
 
 import (
-	"log"
-	"fmt"
 	"errors"
+	"fmt"
+	"log"
+	"net/http"
 	"strconv"
-	"github.com/boltdb/bolt"
 	"sync"
+	"html/template"
+
+	"github.com/boltdb/bolt"
 )
+
+var templFuncs = template.FuncMap{
+	"prettyDisplay": prettyDisplay,
+}
+var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("templates/*.html"))
 
 type Envelope struct {
 	// Values in Euro-cents
-	balance int
-	target int
-	name string
-	m sync.Mutex
+	Balance int
+	Target  int
+	Name    string
+	m       sync.Mutex
 }
 
 func (e *Envelope) String() string {
-	return fmt.Sprintf("<Envelope '%s', Balance: %d, Target: %d>", e.name, e.balance, e.target)
+	return fmt.Sprintf("<Envelope '%s', Balance: %d, Target: %d>", e.Name, e.Balance, e.Target)
 }
 
 func EnvelopeFromDB(db *bolt.DB, name string) *Envelope {
-	e := &Envelope{name: name}
+	e := &Envelope{Name: name}
 
-	err := db.View(func (tx *bolt.Tx) error {
+	err := db.View(func(tx *bolt.Tx) error {
 		envelopes := tx.Bucket([]byte("envelopes"))
 		if envelopes == nil {
 			return errors.New(`can't find bucket "envelopes"`)
@@ -52,8 +60,8 @@ func EnvelopeFromDB(db *bolt.DB, name string) *Envelope {
 			return errors.New(fmt.Sprintf(`target value for envelope %s is corrupted: %s: %s`, name, tgt_s, err))
 		}
 
-		e.balance = bal
-		e.target = tgt
+		e.Balance = bal
+		e.Target = tgt
 
 		return nil
 	})
@@ -66,7 +74,7 @@ func EnvelopeFromDB(db *bolt.DB, name string) *Envelope {
 }
 
 func (e *Envelope) Persist(db *bolt.DB) error {
-	err := db.Batch(func (tx *bolt.Tx) error {
+	err := db.Batch(func(tx *bolt.Tx) error {
 		e.m.Lock()
 		defer e.m.Unlock()
 
@@ -75,17 +83,17 @@ func (e *Envelope) Persist(db *bolt.DB) error {
 			return err
 		}
 
-		eb, err := envelopes.CreateBucketIfNotExists([]byte(e.name))
+		eb, err := envelopes.CreateBucketIfNotExists([]byte(e.Name))
 		if err != nil {
 			return err
 		}
 
-		bal := []byte(strconv.Itoa(e.balance))
+		bal := []byte(strconv.Itoa(e.Balance))
 		if err = eb.Put([]byte("balance"), bal); err != nil {
 			return err
 		}
 
-		tgt := []byte(strconv.Itoa(e.target))
+		tgt := []byte(strconv.Itoa(e.Target))
 		if err = eb.Put([]byte("target"), tgt); err != nil {
 			return err
 		}
@@ -100,7 +108,72 @@ func (e *Envelope) IncBalance(delta int) {
 	e.m.Lock()
 	defer e.m.Unlock()
 
-	e.balance += delta
+	e.Balance += delta
+}
+
+func prettyDisplay(cents int) string {
+	return fmt.Sprintf("%.02f", float64(cents) / 100)
+}
+
+func AllEnvelopes(db *bolt.DB) []*Envelope {
+	rv := []*Envelope{}
+
+	err := db.View(func (tx *bolt.Tx) error {
+		envelopes := tx.Bucket([]byte("envelopes"))
+		if envelopes == nil {
+			return errors.New(`can't find bucket 'envelopes'`)
+		}
+
+		c := envelopes.Cursor()
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			rv = append(rv, EnvelopeFromDB(db, string(k)))
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("%s", err)
+	}
+
+	return rv
+}
+
+func handleUpdateRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
+	log.Printf(`update: %v`, r.URL)
+
+	log.Printf(`name: %s`, r.FormValue("env-name"))
+	log.Printf(`target: %s`, r.FormValue("env-target"))
+	log.Printf(`balance: %s`, r.FormValue("env-balance"))
+
+	name := r.FormValue("env-name")
+	env := EnvelopeFromDB(db, name)
+
+	tgt, err := strconv.ParseFloat(r.FormValue("env-target"), 64)
+	if err != nil {
+		log.Printf(`err: %s`, err)
+	} else {
+		env.Target = int(tgt * 100)
+	}
+
+	bal, err := strconv.ParseFloat(r.FormValue("env-balance"), 64)
+	if err != nil {
+		log.Printf(`err: %s`, err)
+	} else {
+		env.Balance = int(bal * 100)
+	}
+
+	env.Persist(db)
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func handleRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
+	log.Printf(`request: %v`, r.URL)
+
+	w.Header().Add("Content-Type", "text/html")
+	envelopes := AllEnvelopes(db)
+	templ.ExecuteTemplate(w, "index.html", envelopes)
 }
 
 func main() {
@@ -112,16 +185,12 @@ func main() {
 	}
 	defer db.Close()
 
-	e := EnvelopeFromDB(db, "Miete")
-	log.Printf("From DB: %v", e)
-
-	e.IncBalance(10)
-
-	log.Printf("To DB: %v", e)
-
-	if err := e.Persist(db); err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("done")
+	http.Handle("/static/", http.FileServer(http.Dir(".")))
+	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
+		handleRequest(db, w, r)
+	})
+	http.HandleFunc("/update", func (w http.ResponseWriter, r *http.Request) {
+		handleUpdateRequest(db, w, r)
+	})
+	log.Fatal(http.ListenAndServe("127.0.0.1:8081", nil))
 }

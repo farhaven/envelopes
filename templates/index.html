@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="/static/pure/pure-min.css">
+		<link rel="stylesheet" href="/static/pure/grids-responsive-min.css">
+		<link rel="stylesheet" href="/static/style.css">
+		<title>Envelopes</title>
+	</head>
+	<body>
+		<div class="e-container">
+			<h1>Envelopes</h1>
+			<table class="pure-table">
+				<thead>
+					<tr>
+						<td>Name</td>
+						<td>Balance</td>
+						<td>Target</td>
+					</tr>
+				</thead>
+				<tbody>
+				{{ range . }}
+				<tr>
+					<td>{{ .Name }}</td>
+					<td>{{ prettyDisplay .Balance }}</td>
+					<td>{{ prettyDisplay .Target }}</td>
+				</tr>
+				{{ end }}
+				</tbody>
+			</table>
+		</div>
+		<div class="e-container">
+			<form class="pure-form" action="/update" method="post">
+				<fieldset>
+					<input type="text" size="10" name="env-name" placeholder="Name">
+					<input type="number" size="10" min="0" step="any" name="env-balance" placeholder="Current balance">
+					<input type="number" size="10" min="0" step="any" name="env-target" placeholder="Target balance">
+					<button type="submit" class="pure-button pure-button-primary">Add new envelope</button>
+				</fieldset>
+			</form>
+		</div>
+	</body>
+</html>
