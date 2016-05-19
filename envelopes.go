@@ -214,8 +214,26 @@ func handleRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`request: %v`, r.URL)
 
 	w.Header().Add("Content-Type", "text/html")
-	envelopes := AllEnvelopes(db)
-	templ.ExecuteTemplate(w, "index.html", envelopes)
+	es := AllEnvelopes(db)
+	d := int(0)
+	for i := range es {
+		d += es[i].Balance - es[i].Target
+	}
+	dcls := "delta-ok"
+	if d < 0 {
+		dcls = "delta-warn"
+	}
+	param := struct {
+		Envelopes []*Envelope
+		TotalDelta struct{
+			Cls string
+			Val int
+		}
+	}{
+		Envelopes: es,
+		TotalDelta: struct{Cls string; Val int}{ dcls, d },
+	}
+	templ.ExecuteTemplate(w, "index.html", param)
 }
 
 func main() {

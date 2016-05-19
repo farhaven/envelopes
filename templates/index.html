@@ -10,7 +10,9 @@
 	</head>
 	<body>
 		<div class="e-container">
-			<h1>Envelopes</h1>
+			<div>
+			Total Delta: <span class="{{ .TotalDelta.Cls }}">{{ prettyDisplay .TotalDelta.Val }}</span>
+			</div>
 			<table class="pure-table" id="envelopes">
 				<thead>
 					<tr>
@@ -23,12 +25,12 @@
 					</tr>
 				</thead>
 				<tbody>
-				{{ range . }}
+				{{ range .Envelopes }}
 				{{ $delta := delta .Balance .Target }}
 				<tr>
 					<form class="pure-form" action="/update" method="post">
 						<input type="hidden" name="env-name" value="{{ .Name }}">
-						<td><input type="text" size="10" name="env-new-name" value="{{ .Name }}"></td>
+						<td><input type="text" size="13" name="env-new-name" value="{{ .Name }}"></td>
 						<td><input type="number" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
 						<td><input type="number" name="env-target" value="{{ prettyDisplay .Target }}"></td>
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
@@ -43,7 +45,7 @@
 		<div class="e-container">
 			<form class="pure-form" action="/update" method="post">
 				<fieldset>
-					<input type="text" size="15" name="env-name" placeholder="Name">
+					<input type="text" size="13" name="env-name" placeholder="Name" autofocus>
 					<input type="number" min="0" step="any" name="env-balance" placeholder="Balance">
 					<input type="number" min="0" step="any" name="env-target" placeholder="Target">
 					<button type="submit" class="pure-button pure-button-primary">Add new envelope</button>

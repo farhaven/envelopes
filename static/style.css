@@ -26,3 +26,7 @@ table#envelopes {
 span.delta-warn {
 	color: #b03;
 }
+
+span.delta-ok {
+	color: #072;
+}
