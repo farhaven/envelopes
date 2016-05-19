@@ -4,19 +4,25 @@ import (
 	"log"
 	"fmt"
 	"errors"
-	"encoding/binary"
+	"strconv"
 	"github.com/boltdb/bolt"
+	"sync"
 )
 
 type Envelope struct {
 	// Values in Euro-cents
-	balance int64
-	target int64
+	balance int
+	target int
 	name string
+	m sync.Mutex
 }
 
-func EnvelopeFromDB(db *bolt.DB, name string) Envelope {
-	e := Envelope{name: name}
+func (e *Envelope) String() string {
+	return fmt.Sprintf("<Envelope '%s', Balance: %d, Target: %d>", e.name, e.balance, e.target)
+}
+
+func EnvelopeFromDB(db *bolt.DB, name string) *Envelope {
+	e := &Envelope{name: name}
 
 	err := db.View(func (tx *bolt.Tx) error {
 		envelopes := tx.Bucket([]byte("envelopes"))
@@ -36,14 +42,14 @@ func EnvelopeFromDB(db *bolt.DB, name string) Envelope {
 			return errors.New(fmt.Sprintf(`can't find balance or target for envelope %s`, name))
 		}
 
-		bal, n := binary.Varint(bal_s)
-		if bal == 0 && n <= 0 {
-			return errors.New(fmt.Sprintf(`balance value for envelope %s is corrupted: %s`, name, bal_s))
+		bal, err := strconv.Atoi(string(bal_s))
+		if err != nil {
+			return errors.New(fmt.Sprintf(`balance value for envelope %s is corrupted: %s: %s`, name, bal_s, err))
 		}
 
-		tgt, n := binary.Varint(tgt_s)
-		if tgt == 0 && n <= 0 {
-			return errors.New(fmt.Sprintf(`target value for envelope %s is corrupted: %s`, name, tgt_s))
+		tgt, err := strconv.Atoi(string(tgt_s))
+		if err != nil {
+			return errors.New(fmt.Sprintf(`target value for envelope %s is corrupted: %s: %s`, name, tgt_s, err))
 		}
 
 		e.balance = bal
@@ -61,6 +67,9 @@ func EnvelopeFromDB(db *bolt.DB, name string) Envelope {
 
 func (e *Envelope) Persist(db *bolt.DB) error {
 	err := db.Batch(func (tx *bolt.Tx) error {
+		e.m.Lock()
+		defer e.m.Unlock()
+
 		envelopes, err := tx.CreateBucketIfNotExists([]byte("envelopes"))
 		if err != nil {
 			return err
@@ -71,17 +80,13 @@ func (e *Envelope) Persist(db *bolt.DB) error {
 			return err
 		}
 
-		bal := make([]byte, binary.MaxVarintLen64)
-		bal_n := binary.PutVarint(bal, e.balance)
-
-		if err = eb.Put([]byte("target"), bal[:bal_n]); err != nil {
+		bal := []byte(strconv.Itoa(e.balance))
+		if err = eb.Put([]byte("balance"), bal); err != nil {
 			return err
 		}
 
-		tgt := make([]byte, binary.MaxVarintLen64)
-		tgt_n := binary.PutVarint(tgt, e.target)
-
-		if err = eb.Put([]byte("balance"), tgt[:tgt_n]); err != nil {
+		tgt := []byte(strconv.Itoa(e.target))
+		if err = eb.Put([]byte("target"), tgt); err != nil {
 			return err
 		}
 
@@ -89,6 +94,13 @@ func (e *Envelope) Persist(db *bolt.DB) error {
 	})
 
 	return err
+}
+
+func (e *Envelope) IncBalance(delta int) {
+	e.m.Lock()
+	defer e.m.Unlock()
+
+	e.balance += delta
 }
 
 func main() {
@@ -101,10 +113,11 @@ func main() {
 	defer db.Close()
 
 	e := EnvelopeFromDB(db, "Miete")
-	log.Printf("%v", e)
+	log.Printf("From DB: %v", e)
 
-	e.balance = 100
-	e.target = 0
+	e.IncBalance(10)
+
+	log.Printf("To DB: %v", e)
 
 	if err := e.Persist(db); err != nil {
 		log.Fatal(err)
