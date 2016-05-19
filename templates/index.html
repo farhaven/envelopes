@@ -11,20 +11,30 @@
 	<body>
 		<div class="e-container">
 			<h1>Envelopes</h1>
-			<table class="pure-table">
+			<table class="pure-table" id="envelopes">
 				<thead>
 					<tr>
 						<td>Name</td>
 						<td>Balance</td>
 						<td>Target</td>
+						<td>Difference</td>
+						<td>Update</td>
+						<td>Delete</td>
 					</tr>
 				</thead>
 				<tbody>
 				{{ range . }}
+				{{ $delta := delta .Balance .Target }}
 				<tr>
-					<td>{{ .Name }}</td>
-					<td>{{ prettyDisplay .Balance }}</td>
-					<td>{{ prettyDisplay .Target }}</td>
+					<form class="pure-form" action="/update" method="post">
+						<input type="hidden" name="env-name" value="{{ .Name }}">
+						<td><input type="text" size="10" name="env-new-name" value="{{ .Name }}"></td>
+						<td><input type="number" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
+						<td><input type="number" name="env-target" value="{{ prettyDisplay .Target }}"></td>
+						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
+						<td><button type="submit" class="pure-button pure-button-primary">U</button></td>
+					</form>
+					<td><a class="pure-button button-danger" href="/delete?name={{ .Name }}">X</a></td>
 				</tr>
 				{{ end }}
 				</tbody>
@@ -33,9 +43,9 @@
 		<div class="e-container">
 			<form class="pure-form" action="/update" method="post">
 				<fieldset>
-					<input type="text" size="10" name="env-name" placeholder="Name">
-					<input type="number" size="10" min="0" step="any" name="env-balance" placeholder="Current balance">
-					<input type="number" size="10" min="0" step="any" name="env-target" placeholder="Target balance">
+					<input type="text" size="15" name="env-name" placeholder="Name">
+					<input type="number" min="0" step="any" name="env-balance" placeholder="Balance">
+					<input type="number" min="0" step="any" name="env-target" placeholder="Target">
 					<button type="submit" class="pure-button pure-button-primary">Add new envelope</button>
 				</fieldset>
 			</form>

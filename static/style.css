@@ -9,3 +9,20 @@ div.e-box {
 	margin: 1em;
 	padding: 0.2em;
 }
+
+input[type="number"] {
+	width: 6em;
+	text-align: right;
+}
+
+.button-danger {
+	background: rgb(202, 60, 60);
+}
+
+table#envelopes {
+	font-size: 0.9em;
+}
+
+span.delta-warn {
+	color: #b03;
+}

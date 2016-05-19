@@ -14,6 +14,7 @@ import (
 
 var templFuncs = template.FuncMap{
 	"prettyDisplay": prettyDisplay,
+	"delta": computeDelta,
 }
 var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("templates/*.html"))
 
@@ -111,10 +112,6 @@ func (e *Envelope) IncBalance(delta int) {
 	e.Balance += delta
 }
 
-func prettyDisplay(cents int) string {
-	return fmt.Sprintf("%.02f", float64(cents) / 100)
-}
-
 func AllEnvelopes(db *bolt.DB) []*Envelope {
 	rv := []*Envelope{}
 
@@ -139,15 +136,60 @@ func AllEnvelopes(db *bolt.DB) []*Envelope {
 	return rv
 }
 
+func prettyDisplay(cents int) string {
+	return fmt.Sprintf("%.02f", float64(cents) / 100)
+}
+
+func computeDelta(balance, target int) []string {
+	delta := balance - target
+	cls := "delta-ok"
+	if delta < 0 {
+		cls = "delta-warn"
+	}
+	return []string{cls, fmt.Sprintf(`%.02f`, float64(delta) / 100)}
+}
+
+func handleDeleteRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
+	log.Printf(`delete: %v`, r.URL)
+	log.Printf(`name: %s`, r.FormValue("name"))
+	if err := db.Update(func (tx *bolt.Tx) error {
+		envelopes := tx.Bucket([]byte("envelopes"))
+		if envelopes == nil {
+			return errors.New(`can't find bucket 'envelopes'`)
+		}
+
+		return envelopes.DeleteBucket([]byte(r.FormValue("name")))
+	}); err != nil {
+		log.Printf(`err: %s`, err)
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 func handleUpdateRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`update: %v`, r.URL)
 
 	log.Printf(`name: %s`, r.FormValue("env-name"))
+	log.Printf(`newname: %s`, r.FormValue("env-new-name"))
 	log.Printf(`target: %s`, r.FormValue("env-target"))
 	log.Printf(`balance: %s`, r.FormValue("env-balance"))
 
 	name := r.FormValue("env-name")
+	newname := r.FormValue("env-new-name")
+
 	env := EnvelopeFromDB(db, name)
+	if newname != "" && newname != name {
+		err := db.Update(func (tx *bolt.Tx) error {
+			envelopes := tx.Bucket([]byte("envelopes"))
+			if envelopes == nil {
+				return errors.New(`can't find bucket 'envelopes'`)
+			}
+
+			return envelopes.DeleteBucket([]byte(name))
+		})
+		if err == nil {
+			env.Name = newname
+		}
+	}
 
 	tgt, err := strconv.ParseFloat(r.FormValue("env-target"), 64)
 	if err != nil {
@@ -191,6 +233,9 @@ func main() {
 	})
 	http.HandleFunc("/update", func (w http.ResponseWriter, r *http.Request) {
 		handleUpdateRequest(db, w, r)
+	})
+	http.HandleFunc("/delete", func (w http.ResponseWriter, r *http.Request) {
+		handleDeleteRequest(db, w, r)
 	})
 	log.Fatal(http.ListenAndServe("127.0.0.1:8081", nil))
 }
