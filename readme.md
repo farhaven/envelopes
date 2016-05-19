@@ -34,3 +34,8 @@ with the envelope will be lost, so you'll need to redistribute them manually.
 
 The lowest value for the balance and target of an envelope is zero. This may
 change in the future.
+
+Backups
+-------
+The file `envelopes.db` contains all information from this application. Keep it
+in a safe place and make regular backups!
