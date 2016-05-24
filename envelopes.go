@@ -247,7 +247,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf(`error while saving DB: %s`, err)
+		}
+	}()
 
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
@@ -259,5 +263,8 @@ func main() {
 	http.HandleFunc("/delete", func (w http.ResponseWriter, r *http.Request) {
 		handleDeleteRequest(db, w, r)
 	})
-	log.Fatal(http.ListenAndServe("127.0.0.1:8081", nil))
+	err = http.ListenAndServe("127.0.0.1:8081", nil)
+	if err != nil {
+		log.Printf(`HTTP died: %s`, err)
+	}
 }
