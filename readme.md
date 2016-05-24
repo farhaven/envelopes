@@ -39,3 +39,12 @@ Backups
 -------
 The file `envelopes.db` contains all information from this application. Keep it
 in a safe place and make regular backups!
+
+ToDo
+----
+- Add user management
+  - per-user envelopes
+- Make DB path configurable
+- Make periodic DB snapshots
+- Track history of changes
+  - Make individual changes revertable
