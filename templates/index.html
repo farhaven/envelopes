@@ -11,7 +11,8 @@
 	<body>
 		<div class="e-container">
 			<div>
-			Total Delta: <span class="{{ .TotalDelta.Cls }}">{{ prettyDisplay .TotalDelta.Val }}</span>
+			Total Delta: <span class="{{ .TotalDelta.Cls }}">{{ prettyDisplay .TotalDelta.Val }}</span>,
+			Total Balance: <span>{{ prettyDisplay .TotalBalance }}</span>
 			</div>
 			<table class="pure-table" id="envelopes">
 				<thead>

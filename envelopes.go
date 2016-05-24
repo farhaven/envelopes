@@ -215,12 +215,14 @@ func handleRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Add("Content-Type", "text/html")
 	es := AllEnvelopes(db)
-	d := int(0)
+	delta := int(0)
+	balance := int(0)
 	for i := range es {
-		d += es[i].Balance - es[i].Target
+		delta += es[i].Balance - es[i].Target
+		balance += es[i].Balance
 	}
 	dcls := "delta-ok"
-	if d < 0 {
+	if delta < 0 {
 		dcls = "delta-warn"
 	}
 	param := struct {
@@ -229,9 +231,11 @@ func handleRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
 			Cls string
 			Val int
 		}
+		TotalBalance int
 	}{
 		Envelopes: es,
-		TotalDelta: struct{Cls string; Val int}{ dcls, d },
+		TotalDelta: struct{Cls string; Val int}{ dcls, delta },
+		TotalBalance: balance,
 	}
 	templ.ExecuteTemplate(w, "index.html", param)
 }
