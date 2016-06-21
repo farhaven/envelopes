@@ -51,7 +51,7 @@ func (e *Envelope) IncBalance(delta int) {
 	e.Balance += delta
 }
 
-func AllEnvelopes(db *sql.DB) []*Envelope {
+func allEnvelopes(db *sql.DB) []*Envelope {
 	rv := []*Envelope{}
 
 	rows, err := db.Query("SELECT id, name, balance, target FROM envelopes")
@@ -206,7 +206,7 @@ func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`request: %v`, r.URL)
 
 	w.Header().Add("Content-Type", "text/html")
-	es := AllEnvelopes(db)
+	es := allEnvelopes(db)
 	delta := int(0)
 	balance := int(0)
 	for i := range es {
