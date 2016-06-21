@@ -38,8 +38,12 @@ func EnvelopeFromDB(tx *sql.Tx, name string) *Envelope {
 	if err == nil {
 		return &e
 	}
-	if err, _ := tx.Exec("INSERT INTO envelopes VALUES (NULL, $1, 0, 0)", name); err != nil {
-		log.Printf(`db insert failed: %v`, err)
+	log.Printf(`failed to extract envelope: %s`, err)
+	if _, err := tx.Exec("INSERT INTO envelopes VALUES (NULL, $1, 0, 0)", name); err != nil {
+		log.Printf(`db insert failed: %s`, err)
+	}
+	if err := tx.QueryRow("SELECT id FROM envelopes WHERE name = $1", name).Scan(&e.Id); err != nil {
+		log.Printf(`db insert failed: %s`, err)
 	}
 	return &e
 }
@@ -100,6 +104,12 @@ func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf(`err: %s`, err)
 	}
+
+	_, err = db.Exec("DELETE FROM history WHERE envelope = $1", id)
+	if err != nil {
+		log.Printf(`err: %s`, err)
+	}
+
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -115,6 +125,11 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	newname := r.FormValue("env-new-name")
 
 	tx, err := db.Begin()
+	if err != nil {
+		log.Printf(`can't start transaction: %s`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
 	env := EnvelopeFromDB(tx, name)
 
 	if newname != "" {
@@ -139,14 +154,24 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		env.Target += deltaTarget
 	}
 
-	_, err = tx.Exec("INSERT INTO history VALUES (NULL, $1, $2, $3, $4)", env.Id, env.Name, deltaBalance, deltaTarget)
+	log.Printf(`updating DB: name='%s', balance='%d', target='%d'`, env.Name, env.Balance, env.Target)
+
+	_, err = tx.Exec("INSERT INTO history VALUES (NULL, $1, $2, $3, $4, datetime('now'))", env.Id, env.Name, deltaBalance, deltaTarget)
 	if err != nil {
 		log.Printf(`can't create history entry for change to envelope %d`, env.Id)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
 	}
-	_, err = tx.Exec("UPDATE envelopes SET name = $1, balance = $2, target = $3 WHERE id = $4", env.Name, env.Balance, env.Target, env.Id)
+	res, err := tx.Exec("UPDATE envelopes SET name = $1, balance = $2, target = $3 WHERE id = $4", env.Name, env.Balance, env.Target, env.Id)
+	rows, _ := res.RowsAffected()
+	log.Printf(`%d affected rows`, rows)
+
 	if err != nil {
 		log.Printf(`can't update envelope: %v`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
 	}
+
 	if err = tx.Commit(); err != nil {
 		log.Printf(`can't commit transaction: %v`, err)
 	}
@@ -188,7 +213,7 @@ func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := tx.Query("SELECT id, name, balance, target FROM history WHERE envelope = $1", id)
+	rows, err := tx.Query("SELECT id, date, name, balance, target FROM history WHERE envelope = $1", id)
 	if err != nil {
 		log.Printf(`can't query history for envelope %d: %s`, id, err)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -199,7 +224,7 @@ func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var e Event
 		var eventId int
-		if err := rows.Scan(&eventId, &e.Name, &e.Balance, &e.Target); err != nil {
+		if err := rows.Scan(&eventId, &e.Date, &e.Name, &e.Balance, &e.Target); err != nil {
 			log.Printf(`can't scan event %d: %s`, eventId, err)
 		}
 		param.Events = append(param.Events, e)
@@ -246,7 +271,7 @@ func setupDB(db *sql.DB) error {
 	if _, err := tx.Exec("CREATE TABLE IF NOT EXISTS envelopes (id INTEGER PRIMARY KEY AUTOINCREMENT, name STRING, balance INTEGER, target INTEGER)"); err != nil {
 		return err
 	}
-	if _, err := tx.Exec("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, envelope INTEGER, name STRING, balance INTEGER, target INTEGER, FOREIGN KEY(envelope) REFERENCES envelopes(id))"); err != nil {
+	if _, err := tx.Exec("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, envelope INTEGER, date DATETIME, name STRING, balance INTEGER, target INTEGER, FOREIGN KEY(envelope) REFERENCES envelopes(id))"); err != nil {
 		return err
 	}
 

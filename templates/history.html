@@ -23,19 +23,23 @@
 				<tbody>
 					{{ range .Events }}
 					<tr>
-						<td>TBD</td>
+						<td>{{ .Date }}</td>
 						<td>{{ .Name }}</td>
 
-						{{ if ge .Balance 0 }}
-						<td><span class="delta-ok">+{{ .Balance }}</span></td>
+						{{ if gt .Balance 0 }}
+						<td><span class="delta-ok">+{{ prettyDisplay .Balance }}</span></td>
+						{{ else if eq .Balance 0 }}
+						<td>0</td>
 						{{ else }}
-						<td><span class="delta-warn">{{ .Balance }}</span></td>
+						<td><span class="delta-warn">{{ prettyDisplay .Balance }}</span></td>
 						{{ end }}
 
-						{{ if ge .Target 0 }}
-						<td><span class="delta-ok">+{{ .Target }}</span></td>
+						{{ if gt .Target 0 }}
+						<td><span class="delta-ok">+{{ prettyDisplay .Target }}</span></td>
+						{{ else if eq .Target 0 }}
+						<td>0</td>
 						{{ else }}
-						<td><span class="delta-warn">{{ .Target }}</span></td>
+						<td><span class="delta-warn">{{ prettyDisplay .Target }}</span></td>
 						{{ end }}
 					</tr>
 					{{ end }}

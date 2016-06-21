@@ -32,7 +32,7 @@
 				<a name="e-{{ .Id }}"/>
 				<tr>
 					<form class="pure-form" action="/update" method="post">
-						<input type="hidden" name="env-id" value="{{ .Name }}">
+						<input type="hidden" name="env-name" value="{{ .Name }}">
 						<td><input type="text" size="13" name="env-new-name" value="{{ .Name }}"></td>
 						<td><input type="number" step="any" min="0" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
 						<td><input type="number" step="any" min="0" name="env-target" value="{{ prettyDisplay .Target }}"></td>
