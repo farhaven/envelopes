@@ -88,9 +88,15 @@ func computeDelta(balance, target int) []string {
 
 func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`delete: %v`, r.URL)
-	log.Printf(`name: %s`, r.FormValue("name"))
+	log.Printf(`id: %s`, r.FormValue("id"))
 
-	_, err := db.Exec("DELETE FROM envelopes WHERE name = $1", r.FormValue("name"))
+	id, err := strconv.Atoi(r.FormValue("id"))
+	if err != nil {
+		log.Printf(`err: %s`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
+
+	_, err = db.Exec("DELETE FROM envelopes WHERE id = $1", id)
 	if err != nil {
 		log.Printf(`err: %s`, err)
 	}
