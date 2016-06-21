@@ -20,7 +20,7 @@ var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("template
 
 type Envelope struct {
 	// Values in Euro-cents
-	id int
+	Id int
 	Balance int
 	Target  int
 	Name    string
@@ -34,7 +34,7 @@ func (e *Envelope) String() string {
 func EnvelopeFromDB(tx *sql.Tx, name string) *Envelope {
 	e := Envelope{Name: name}
 
-	err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE name = $1", name).Scan(&e.id, &e.Balance, &e.Target)
+	err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE name = $1", name).Scan(&e.Id, &e.Balance, &e.Target)
 	if err == nil {
 		return &e
 	}
@@ -63,7 +63,7 @@ func AllEnvelopes(db *sql.DB) []*Envelope {
 
 	for rows.Next() {
 		var e Envelope
-		if err := rows.Scan(&e.id, &e.Name, &e.Balance, &e.Target); err != nil {
+		if err := rows.Scan(&e.Id, &e.Name, &e.Balance, &e.Target); err != nil {
 			log.Printf(`error querying DB: %v`, err)
 			return nil
 		}
@@ -133,11 +133,11 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		env.Target += deltaTarget
 	}
 
-	_, err = tx.Exec("INSERT INTO history VALUES (NULL, $1, $2, $3, $4)", env.id, env.Name, deltaBalance, deltaTarget)
+	_, err = tx.Exec("INSERT INTO history VALUES (NULL, $1, $2, $3, $4)", env.Id, env.Name, deltaBalance, deltaTarget)
 	if err != nil {
-		log.Printf(`can't create history entry for change to envelope %d`, env.id)
+		log.Printf(`can't create history entry for change to envelope %d`, env.Id)
 	}
-	_, err = tx.Exec("UPDATE envelopes SET name = $1, balance = $2, target = $3 WHERE id = $4", env.Name, env.Balance, env.Target, env.id)
+	_, err = tx.Exec("UPDATE envelopes SET name = $1, balance = $2, target = $3 WHERE id = $4", env.Name, env.Balance, env.Target, env.Id)
 	if err != nil {
 		log.Printf(`can't update envelope: %v`, err)
 	}
@@ -146,6 +146,60 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.FormValue("id"))
+	if err != nil {
+		log.Printf(`can't parse ID %s: %s`, r.FormValue("id"), err)
+	}
+
+	type Event struct {
+		Date string
+		Name string
+		Balance int
+		Target int
+	}
+
+	param := struct {
+		Id int
+		Name string
+		Events []Event
+	}{
+		Id: id,
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Printf(`tx: %s`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	defer tx.Rollback()
+
+	if err := tx.QueryRow("SELECT name FROM envelopes WHERE id = $1", id).Scan(&param.Name); err != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	rows, err := tx.Query("SELECT id, name, balance, target FROM history WHERE envelope = $1", id)
+	if err != nil {
+		log.Printf(`can't query history for envelope %d: %s`, id, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var e Event
+		var eventId int
+		if err := rows.Scan(&eventId, &e.Name, &e.Balance, &e.Target); err != nil {
+			log.Printf(`can't scan event %d: %s`, eventId, err)
+		}
+		param.Events = append(param.Events, e)
+	}
+
+	templ.ExecuteTemplate(w, "history.html", param)
 }
 
 func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
@@ -226,6 +280,9 @@ func main() {
 	})
 	http.HandleFunc("/delete", func (w http.ResponseWriter, r *http.Request) {
 		handleDeleteRequest(db, w, r)
+	})
+	http.HandleFunc("/history", func (w http.ResponseWriter, r *http.Request) {
+		handleHistory(db, w, r)
 	})
 	err = http.ListenAndServe("127.0.0.1:8081", nil)
 	if err != nil {

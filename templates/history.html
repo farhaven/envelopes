@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="/static/pure/pure-min.css">
+		<link rel="stylesheet" href="/static/pure/grids-responsive-min.css">
+		<link rel="stylesheet" href="/static/style.css">
+		<title>📩 Envelopes: History for Envelope {{ .Id }}</title>
+	</head>
+	<body>
+		<div class="e-container">
+			<h1>Envelope {{ .Id }}: {{ .Name }}</h1>
+			<table class="pure-table">
+				<thead>
+					<tr>
+						<td>Date</td>
+						<td>Name</td>
+						<td>Balance</td>
+						<td>Target</td>
+					</tr>
+				</thead>
+				<tbody>
+					{{ range .Events }}
+					<tr>
+						<td>TBD</td>
+						<td>{{ .Name }}</td>
+
+						{{ if ge .Balance 0 }}
+						<td><span class="delta-ok">+{{ .Balance }}</span></td>
+						{{ else }}
+						<td><span class="delta-warn">{{ .Balance }}</span></td>
+						{{ end }}
+
+						{{ if ge .Target 0 }}
+						<td><span class="delta-ok">+{{ .Target }}</span></td>
+						{{ else }}
+						<td><span class="delta-warn">{{ .Target }}</span></td>
+						{{ end }}
+					</tr>
+					{{ end }}
+				</tbody>
+			</table>
+		</div>
+		<div class="e-container">
+			<a class="pure-button" href="/#e-{{ .Id }}">Back</a>
+		</div>
+	</body>
+</html>
