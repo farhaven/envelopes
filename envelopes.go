@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,7 +8,8 @@ import (
 	"sync"
 	"html/template"
 
-	"github.com/boltdb/bolt"
+	_ "github.com/mattn/go-sqlite3"
+	"database/sql"
 )
 
 var templFuncs = template.FuncMap{
@@ -20,6 +20,7 @@ var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("template
 
 type Envelope struct {
 	// Values in Euro-cents
+	id int
 	Balance int
 	Target  int
 	Name    string
@@ -30,79 +31,17 @@ func (e *Envelope) String() string {
 	return fmt.Sprintf("<Envelope '%s', Balance: %d, Target: %d>", e.Name, e.Balance, e.Target)
 }
 
-func EnvelopeFromDB(db *bolt.DB, name string) *Envelope {
-	e := &Envelope{Name: name}
+func EnvelopeFromDB(tx *sql.Tx, name string) *Envelope {
+	e := Envelope{Name: name}
 
-	err := db.View(func(tx *bolt.Tx) error {
-		envelopes := tx.Bucket([]byte("envelopes"))
-		if envelopes == nil {
-			return errors.New(`can't find bucket "envelopes"`)
-		}
-
-		eb := envelopes.Bucket([]byte(name))
-		if eb == nil {
-			return errors.New(fmt.Sprintf(`can't find envelope %s`, name))
-		}
-
-		bal_s := eb.Get([]byte("balance"))
-		tgt_s := eb.Get([]byte("target"))
-
-		if bal_s == nil || tgt_s == nil {
-			return errors.New(fmt.Sprintf(`can't find balance or target for envelope %s`, name))
-		}
-
-		bal, err := strconv.Atoi(string(bal_s))
-		if err != nil {
-			return errors.New(fmt.Sprintf(`balance value for envelope %s is corrupted: %s: %s`, name, bal_s, err))
-		}
-
-		tgt, err := strconv.Atoi(string(tgt_s))
-		if err != nil {
-			return errors.New(fmt.Sprintf(`target value for envelope %s is corrupted: %s: %s`, name, tgt_s, err))
-		}
-
-		e.Balance = bal
-		e.Target = tgt
-
-		return nil
-	})
-
-	if err != nil {
-		log.Printf("%s", err)
+	err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE name = $1", name).Scan(&e.id, &e.Balance, &e.Target)
+	if err == nil {
+		return &e
 	}
-
-	return e
-}
-
-func (e *Envelope) Persist(db *bolt.DB) error {
-	err := db.Batch(func(tx *bolt.Tx) error {
-		e.m.Lock()
-		defer e.m.Unlock()
-
-		envelopes, err := tx.CreateBucketIfNotExists([]byte("envelopes"))
-		if err != nil {
-			return err
-		}
-
-		eb, err := envelopes.CreateBucketIfNotExists([]byte(e.Name))
-		if err != nil {
-			return err
-		}
-
-		bal := []byte(strconv.Itoa(e.Balance))
-		if err = eb.Put([]byte("balance"), bal); err != nil {
-			return err
-		}
-
-		tgt := []byte(strconv.Itoa(e.Target))
-		if err = eb.Put([]byte("target"), tgt); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	return err
+	if err, _ := tx.Exec("INSERT INTO envelopes VALUES (NULL, $1, 0, 0)", name); err != nil {
+		log.Printf(`db insert failed: %v`, err)
+	}
+	return &e
 }
 
 func (e *Envelope) IncBalance(delta int) {
@@ -112,25 +51,23 @@ func (e *Envelope) IncBalance(delta int) {
 	e.Balance += delta
 }
 
-func AllEnvelopes(db *bolt.DB) []*Envelope {
+func AllEnvelopes(db *sql.DB) []*Envelope {
 	rv := []*Envelope{}
 
-	err := db.View(func (tx *bolt.Tx) error {
-		envelopes := tx.Bucket([]byte("envelopes"))
-		if envelopes == nil {
-			return errors.New(`can't find bucket 'envelopes'`)
-		}
-
-		c := envelopes.Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			rv = append(rv, EnvelopeFromDB(db, string(k)))
-		}
-
-		return nil
-	})
-
+	rows, err := db.Query("SELECT id, name, balance, target FROM envelopes")
 	if err != nil {
-		log.Printf("%s", err)
+		log.Printf(`error querying DB: %v`, err)
+		return nil
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var e Envelope
+		if err := rows.Scan(&e.id, &e.Name, &e.Balance, &e.Target); err != nil {
+			log.Printf(`error querying DB: %v`, err)
+			return nil
+		}
+		rv = append(rv, &e)
 	}
 
 	return rv
@@ -149,23 +86,18 @@ func computeDelta(balance, target int) []string {
 	return []string{cls, fmt.Sprintf(`%.02f`, float64(delta) / 100)}
 }
 
-func handleDeleteRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
+func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`delete: %v`, r.URL)
 	log.Printf(`name: %s`, r.FormValue("name"))
-	if err := db.Update(func (tx *bolt.Tx) error {
-		envelopes := tx.Bucket([]byte("envelopes"))
-		if envelopes == nil {
-			return errors.New(`can't find bucket 'envelopes'`)
-		}
 
-		return envelopes.DeleteBucket([]byte(r.FormValue("name")))
-	}); err != nil {
+	_, err := db.Exec("DELETE FROM envelopes WHERE name = $1", r.FormValue("name"))
+	if err != nil {
 		log.Printf(`err: %s`, err)
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func handleUpdateRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
+func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`update: %v`, r.URL)
 
 	log.Printf(`name: %s`, r.FormValue("env-name"))
@@ -176,41 +108,47 @@ func handleUpdateRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("env-name")
 	newname := r.FormValue("env-new-name")
 
-	env := EnvelopeFromDB(db, name)
-	if newname != "" && newname != name {
-		err := db.Update(func (tx *bolt.Tx) error {
-			envelopes := tx.Bucket([]byte("envelopes"))
-			if envelopes == nil {
-				return errors.New(`can't find bucket 'envelopes'`)
-			}
+	tx, err := db.Begin()
+	env := EnvelopeFromDB(tx, name)
 
-			return envelopes.DeleteBucket([]byte(name))
-		})
-		if err == nil {
-			env.Name = newname
-		}
+	if newname != "" {
+		env.Name = newname
 	}
 
-	tgt, err := strconv.ParseFloat(r.FormValue("env-target"), 64)
-	if err != nil {
-		log.Printf(`err: %s`, err)
-	} else {
-		env.Target = int(tgt * 100)
-	}
-
+	deltaBalance := 0
 	bal, err := strconv.ParseFloat(r.FormValue("env-balance"), 64)
 	if err != nil {
 		log.Printf(`err: %s`, err)
 	} else {
-		env.Balance = int(bal * 100)
+		deltaBalance = int(bal * 100) - env.Balance
+		env.Balance += deltaBalance
 	}
 
-	env.Persist(db)
+	deltaTarget := 0
+	tgt, err := strconv.ParseFloat(r.FormValue("env-target"), 64)
+	if err != nil {
+		log.Printf(`err: %s`, err)
+	} else {
+		deltaTarget = int(tgt * 100) - env.Target
+		env.Target += deltaTarget
+	}
+
+	_, err = tx.Exec("INSERT INTO history VALUES (NULL, $1, $2, $3, $4)", env.id, env.Name, deltaBalance, deltaTarget)
+	if err != nil {
+		log.Printf(`can't create history entry for change to envelope %d`, env.id)
+	}
+	_, err = tx.Exec("UPDATE envelopes SET name = $1, balance = $2, target = $3 WHERE id = $4", env.Name, env.Balance, env.Target, env.id)
+	if err != nil {
+		log.Printf(`can't update envelope: %v`, err)
+	}
+	if err = tx.Commit(); err != nil {
+		log.Printf(`can't commit transaction: %v`, err)
+	}
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func handleRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
+func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`request: %v`, r.URL)
 
 	w.Header().Add("Content-Type", "text/html")
@@ -240,18 +178,44 @@ func handleRequest(db *bolt.DB, w http.ResponseWriter, r *http.Request) {
 	templ.ExecuteTemplate(w, "index.html", param)
 }
 
+func setupDB(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec("CREATE TABLE IF NOT EXISTS envelopes (id INTEGER PRIMARY KEY AUTOINCREMENT, name STRING, balance INTEGER, target INTEGER)"); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, envelope INTEGER, name STRING, balance INTEGER, target INTEGER, FOREIGN KEY(envelope) REFERENCES envelopes(id))"); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func main() {
 	log.Printf("Here we go")
 
-	db, err := bolt.Open("envelopes.db", 0600, nil)
+	db, err := sql.Open("sqlite3", "envelopes.sqlite")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer func() {
+		log.Printf("db stats: %v", db.Stats())
 		if err := db.Close(); err != nil {
 			log.Printf(`error while saving DB: %s`, err)
 		}
 	}()
+
+	if err := setupDB(db); err != nil {
+		log.Fatalf(`can't setup DB: %v`, err)
+	}
+
+	var count int64
+	if err := db.QueryRow("SELECT count(*) FROM envelopes").Scan(&count); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf(`DB contains %d envelopes`, count)
 
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
