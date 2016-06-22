@@ -121,6 +121,12 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`newname: %s`, r.FormValue("env-new-name"))
 	log.Printf(`target: %s`, r.FormValue("env-target"))
 	log.Printf(`balance: %s`, r.FormValue("env-balance"))
+	log.Printf(`return: %s`, r.FormValue("env-return"))
+
+	returnTo := "/"
+	if r.FormValue("env-return") != "" {
+		returnTo = "/details?id=" + r.FormValue("env-return")
+	}
 
 	name := r.FormValue("env-name")
 	newname := r.FormValue("env-new-name")
@@ -128,7 +134,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Printf(`can't start transaction: %s`, err)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
 	}
 	env := EnvelopeFromDB(tx, name)
@@ -160,7 +166,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	_, err = tx.Exec("INSERT INTO history VALUES (NULL, $1, $2, $3, $4, datetime('now'))", env.Id, env.Name, deltaBalance, deltaTarget)
 	if err != nil {
 		log.Printf(`can't create history entry for change to envelope %d`, env.Id)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
 	}
 	res, err := tx.Exec("UPDATE envelopes SET name = $1, balance = $2, target = $3 WHERE id = $4", env.Name, env.Balance, env.Target, env.Id)
@@ -169,7 +175,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Printf(`can't update envelope: %v`, err)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
 	}
 
@@ -177,7 +183,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		log.Printf(`can't commit transaction: %v`, err)
 	}
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, returnTo, http.StatusSeeOther)
 }
 
 func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {

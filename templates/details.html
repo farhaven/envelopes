@@ -50,6 +50,7 @@
 			<form class="pure-form pure-form-aligned" action="/update" method="post">
 				<fieldset>
 					<input type="hidden" name="env-name" value="{{ .Name }}">
+					<input type="hidden" name="env-return" value="{{ .Id }}">
 
 					<div class="pure-control-group">
 						<label for="name">Name</label>
