@@ -106,7 +106,7 @@ func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		log.Printf(`err: %s`, err)
 	}
 
-	_, err = db.Exec("DELETE FROM detail WHERE envelope = $1", id)
+	_, err = db.Exec("DELETE FROM history WHERE envelope = $1", id)
 	if err != nil {
 		log.Printf(`err: %s`, err)
 	}
