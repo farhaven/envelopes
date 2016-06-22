@@ -21,9 +21,7 @@
 						<td>Balance</td>
 						<td>Target</td>
 						<td>Delta</td>
-						<td>Update</td>
 						<td>Delete</td>
-						<td>History</td>
 					</tr>
 				</thead>
 				<tbody>
@@ -31,16 +29,14 @@
 				{{ $delta := delta .Balance .Target }}
 				<a name="e-{{ .Id }}"/>
 				<tr>
+					<td><a href="/details?id={{ .Id }}">{{ .Name }}</a></td>
 					<form class="pure-form" action="/update" method="post">
 						<input type="hidden" name="env-name" value="{{ .Name }}">
-						<td><input type="text" size="13" name="env-new-name" value="{{ .Name }}"></td>
 						<td><input type="number" step="any" min="0" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
-						<td><input type="number" step="any" min="0" name="env-target" value="{{ prettyDisplay .Target }}"></td>
+						<td>{{ prettyDisplay .Target }}</td>
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
-						<td><button type="submit" class="pure-button pure-button-primary">U</button></td>
 					</form>
 					<td><a class="pure-button button-danger" href="/delete?id={{ .Id }}">X</a></td>
-					<td><a class="pure-button" href="/history?id={{ .Id }}">H</a></td>
 				</tr>
 				{{ end }}
 				</tbody>

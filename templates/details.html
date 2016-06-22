@@ -6,11 +6,12 @@
 		<link rel="stylesheet" href="/static/pure/pure-min.css">
 		<link rel="stylesheet" href="/static/pure/grids-responsive-min.css">
 		<link rel="stylesheet" href="/static/style.css">
-		<title>📩 Envelopes: History for Envelope {{ .Id }}</title>
+		<title>📩 Envelopes: Details for Envelope {{ .Id }}</title>
 	</head>
 	<body>
 		<div class="e-container">
 			<h1>Envelope {{ .Id }}: {{ .Name }}</h1>
+			<h2>History</h2>
 			<table class="pure-table">
 				<thead>
 					<tr>
@@ -45,6 +46,26 @@
 					{{ end }}
 				</tbody>
 			</table>
+			<h2>Some other stuff</h2>
+			<form class="pure-form pure-form-aligned" action="/update" method="post">
+				<fieldset>
+					<input type="hidden" name="env-name" value="{{ .Name }}">
+
+					<div class="pure-control-group">
+						<label for="name">Name</label>
+						<input id="name" type="text" name="env-new-name" value="{{ .Name }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="target">Target</label>
+						<input id="target" type="number" step="any" min="0" name="env-target" value="{{ prettyDisplay .Target }}">
+					</div>
+
+					<div class="pure-controls">
+						<button type="submit" class="pure-button pure-button-primary">Change</button>
+					</div>
+				</fieldset>
+			</form>
 		</div>
 		<div class="e-container">
 			<a class="pure-button" href="/#e-{{ .Id }}">Back</a>

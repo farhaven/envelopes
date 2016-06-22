@@ -106,7 +106,7 @@ func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		log.Printf(`err: %s`, err)
 	}
 
-	_, err = db.Exec("DELETE FROM history WHERE envelope = $1", id)
+	_, err = db.Exec("DELETE FROM detail WHERE envelope = $1", id)
 	if err != nil {
 		log.Printf(`err: %s`, err)
 	}
@@ -180,7 +180,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
+func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.FormValue("id"))
 	if err != nil {
 		log.Printf(`can't parse ID %s: %s`, r.FormValue("id"), err)
@@ -196,6 +196,7 @@ func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	param := struct {
 		Id     int
 		Name   string
+		Target int
 		Events []Event
 	}{
 		Id: id,
@@ -209,7 +210,7 @@ func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	if err := tx.QueryRow("SELECT name FROM envelopes WHERE id = $1", id).Scan(&param.Name); err != nil {
+	if err := tx.QueryRow("SELECT name, target FROM envelopes WHERE id = $1", id).Scan(&param.Name, &param.Target); err != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
@@ -231,7 +232,7 @@ func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		param.Events = append(param.Events, e)
 	}
 
-	templ.ExecuteTemplate(w, "history.html", param)
+	templ.ExecuteTemplate(w, "details.html", param)
 }
 
 func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
@@ -316,8 +317,8 @@ func main() {
 	http.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
 		handleDeleteRequest(db, w, r)
 	})
-	http.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
-		handleHistory(db, w, r)
+	http.HandleFunc("/details", func(w http.ResponseWriter, r *http.Request) {
+		handleDetail(db, w, r)
 	})
 	err = http.ListenAndServe("127.0.0.1:8081", nil)
 	if err != nil {
