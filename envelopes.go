@@ -2,25 +2,26 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
-	"html/template"
+
+	"database/sql"
 
 	_ "github.com/mattn/go-sqlite3"
-	"database/sql"
 )
 
 var templFuncs = template.FuncMap{
 	"prettyDisplay": prettyDisplay,
-	"delta": computeDelta,
+	"delta":         computeDelta,
 }
 var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("templates/*.html"))
 
 type Envelope struct {
 	// Values in Euro-cents
-	Id int
+	Id      int
 	Balance int
 	Target  int
 	Name    string
@@ -78,7 +79,7 @@ func allEnvelopes(db *sql.DB) []*Envelope {
 }
 
 func prettyDisplay(cents int) string {
-	return fmt.Sprintf("%.02f", float64(cents) / 100)
+	return fmt.Sprintf("%.02f", float64(cents)/100)
 }
 
 func computeDelta(balance, target int) []string {
@@ -87,7 +88,7 @@ func computeDelta(balance, target int) []string {
 	if delta < 0 {
 		cls = "delta-warn"
 	}
-	return []string{cls, fmt.Sprintf(`%.02f`, float64(delta) / 100)}
+	return []string{cls, fmt.Sprintf(`%.02f`, float64(delta)/100)}
 }
 
 func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
@@ -141,7 +142,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf(`err: %s`, err)
 	} else {
-		deltaBalance = int(bal * 100) - env.Balance
+		deltaBalance = int(bal*100) - env.Balance
 		env.Balance += deltaBalance
 	}
 
@@ -150,7 +151,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf(`err: %s`, err)
 	} else {
-		deltaTarget = int(tgt * 100) - env.Target
+		deltaTarget = int(tgt*100) - env.Target
 		env.Target += deltaTarget
 	}
 
@@ -186,15 +187,15 @@ func handleHistory(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 
 	type Event struct {
-		Date string
-		Name string
+		Date    string
+		Name    string
 		Balance int
-		Target int
+		Target  int
 	}
 
 	param := struct {
-		Id int
-		Name string
+		Id     int
+		Name   string
 		Events []Event
 	}{
 		Id: id,
@@ -249,15 +250,18 @@ func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		dcls = "delta-warn"
 	}
 	param := struct {
-		Envelopes []*Envelope
-		TotalDelta struct{
+		Envelopes  []*Envelope
+		TotalDelta struct {
 			Cls string
 			Val int
 		}
 		TotalBalance int
 	}{
 		Envelopes: es,
-		TotalDelta: struct{Cls string; Val int}{ dcls, delta },
+		TotalDelta: struct {
+			Cls string
+			Val int
+		}{dcls, delta},
 		TotalBalance: balance,
 	}
 	templ.ExecuteTemplate(w, "index.html", param)
@@ -303,16 +307,16 @@ func main() {
 	log.Printf(`DB contains %d envelopes`, count)
 
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
-	http.HandleFunc("/", func (w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleRequest(db, w, r)
 	})
-	http.HandleFunc("/update", func (w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
 		handleUpdateRequest(db, w, r)
 	})
-	http.HandleFunc("/delete", func (w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
 		handleDeleteRequest(db, w, r)
 	})
-	http.HandleFunc("/history", func (w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
 		handleHistory(db, w, r)
 	})
 	err = http.ListenAndServe("127.0.0.1:8081", nil)
