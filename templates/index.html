@@ -33,7 +33,7 @@
 				<tr>
 					<td><a href="/details?id={{ .Id }}">{{ .Name }}</a></td>
 					<form class="pure-form" action="/update" method="post">
-						<input type="hidden" name="env-name" value="{{ .Name }}">
+						<input type="hidden" name="env-id" value="{{ .Id }}">
 						<td><input type="number" step="any" min="0" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
 						<td>{{ prettyDisplay .Target }}</td>
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>

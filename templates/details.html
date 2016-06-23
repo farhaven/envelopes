@@ -48,12 +48,12 @@
 			<form class="pure-form pure-form-aligned" action="/update" method="post">
 				<fieldset>
 					<legend>Properties</legend>
-					<input type="hidden" name="env-name" value="{{ .Name }}">
+					<input type="hidden" name="env-id" value="{{ .Id }}">
 					<input type="hidden" name="env-return" value="{{ .Id }}">
 
 					<div class="pure-control-group">
 						<label for="name">Name</label>
-						<input id="name" type="text" name="env-new-name" value="{{ .Name }}">
+						<input id="name" type="text" name="env-name" value="{{ .Name }}">
 					</div>
 
 					<div class="pure-control-group">

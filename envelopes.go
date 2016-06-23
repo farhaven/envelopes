@@ -34,16 +34,18 @@ func (e *Envelope) String() string {
 	return fmt.Sprintf("<Envelope '%s', Balance: %d, Target: %d>", e.Name, e.Balance, e.Target)
 }
 
-func EnvelopeFromDB(tx *sql.Tx, name string) *Envelope {
-	e := Envelope{Name: name}
+func EnvelopeFromDB(tx *sql.Tx, id string) *Envelope {
+	e := Envelope{Id: id}
 
-	err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE name = $1", name).Scan(&e.Id, &e.Balance, &e.Target)
-	if err == nil {
-		return &e
+	if id != "" {
+		err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE id = $1", id).Scan(&e.Id, &e.Balance, &e.Target)
+		if err == nil {
+			return &e
+		}
 	}
-	log.Printf(`failed to extract envelope: %s`, err)
+
 	e.Id = uuid.New().String()
-	if _, err := tx.Exec("INSERT INTO envelopes VALUES ($1, $2, 0, 0)", e.Id, name); err != nil {
+	if _, err := tx.Exec(`INSERT INTO envelopes VALUES ($1, "", 0, 0)`, e.Id); err != nil {
 		log.Printf(`db insert failed: %s`, err)
 	}
 	return &e
@@ -125,7 +127,6 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`update: %v`, r.URL)
 
 	log.Printf(`name: %s`, r.FormValue("env-name"))
-	log.Printf(`newname: %s`, r.FormValue("env-new-name"))
 	log.Printf(`target: %s`, r.FormValue("env-target"))
 	log.Printf(`balance: %s`, r.FormValue("env-balance"))
 	log.Printf(`return: %s`, r.FormValue("env-return"))
@@ -135,8 +136,8 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		returnTo = "/details?id=" + r.FormValue("env-return")
 	}
 
+	id := r.FormValue("env-id")
 	name := r.FormValue("env-name")
-	newname := r.FormValue("env-new-name")
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -144,10 +145,10 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
 	}
-	env := EnvelopeFromDB(tx, name)
+	env := EnvelopeFromDB(tx, id)
 
-	if newname != "" {
-		env.Name = newname
+	if name != "" {
+		env.Name = name
 	}
 
 	deltaBalance := 0
