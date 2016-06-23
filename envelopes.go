@@ -250,7 +250,9 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		param.Events = append(param.Events, e)
 	}
 
-	templ.ExecuteTemplate(w, "details.html", param)
+	if err := templ.ExecuteTemplate(w, "details.html", param); err != nil {
+		log.Printf(`error rendering details template: %s`, err)
+	}
 }
 
 func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
@@ -283,7 +285,10 @@ func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		}{dcls, delta},
 		TotalBalance: balance,
 	}
-	templ.ExecuteTemplate(w, "index.html", param)
+
+	if err := templ.ExecuteTemplate(w, "index.html", param); err != nil {
+		log.Printf(`error rendering overview template: %s`, err)
+	}
 }
 
 func setupDB(db *sql.DB) error {
