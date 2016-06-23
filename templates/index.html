@@ -29,7 +29,6 @@
 				<tbody>
 				{{ range .Envelopes }}
 				{{ $delta := delta .Balance .Target }}
-				<a name="e-{{ .Id }}"/>
 				<tr>
 					<td><a href="/details?id={{ .Id }}">{{ .Name }}</a></td>
 					<form class="pure-form" action="/update" method="post">
