@@ -22,7 +22,7 @@ var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("template
 
 type Envelope struct {
 	// Values in Euro-cents
-	Id         string
+	Id         uuid.UUID
 	Balance    int
 	Target     int
 	Name       string
@@ -34,17 +34,15 @@ func (e *Envelope) String() string {
 	return fmt.Sprintf("<Envelope '%s', Balance: %d, Target: %d>", e.Name, e.Balance, e.Target)
 }
 
-func EnvelopeFromDB(tx *sql.Tx, id string) *Envelope {
+func EnvelopeFromDB(tx *sql.Tx, id uuid.UUID) *Envelope {
 	e := Envelope{Id: id}
 
-	if id != "" {
-		err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE id = $1", id).Scan(&e.Id, &e.Balance, &e.Target)
-		if err == nil {
-			return &e
-		}
+	err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE id = $1", id).Scan(&e.Id, &e.Balance, &e.Target)
+	if err == nil {
+		return &e
 	}
 
-	e.Id = uuid.New().String()
+	e.Id = uuid.New()
 	if _, err := tx.Exec(`INSERT INTO envelopes VALUES ($1, "", 0, 0)`, e.Id); err != nil {
 		log.Printf(`db insert failed: %s`, err)
 	}
@@ -112,12 +110,12 @@ func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	_, err := db.Exec("DELETE FROM envelopes WHERE id = $1", id)
 	if err != nil {
-		log.Printf(`err: %s`, err)
+		log.Printf(`error deleting envelope: %s`, err)
 	}
 
 	_, err = db.Exec("DELETE FROM history WHERE envelope = $1", id)
 	if err != nil {
-		log.Printf(`err: %s`, err)
+		log.Printf(`error deleting envelope history: %s`, err)
 	}
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -136,8 +134,11 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		returnTo = "/details?id=" + r.FormValue("env-return")
 	}
 
-	id := r.FormValue("env-id")
-	name := r.FormValue("env-name")
+	id, err := uuid.Parse(r.FormValue("env-id"))
+	if err != nil {
+		log.Printf(`update: can't parse ID: %s`, err)
+		id = uuid.New()
+	}
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -147,6 +148,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 	env := EnvelopeFromDB(tx, id)
 
+	name := r.FormValue("env-name")
 	if name != "" {
 		env.Name = name
 	}
@@ -173,13 +175,19 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	history_id := uuid.New().String()
 
-	_, err = tx.Exec("INSERT INTO history VALUES ($1, $2, $3, $4, $5, datetime('now'))", history_id, env.Id, env.Name, deltaBalance, deltaTarget)
+	_, err = tx.Exec(`
+		INSERT INTO history
+		VALUES ($1, $2, $3, $4, $5, datetime('now'))`,
+		history_id, env.Id, env.Name, deltaBalance, deltaTarget)
 	if err != nil {
 		log.Printf(`can't create history entry for change to envelope %s`, env.Id)
 		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
 	}
-	res, err := tx.Exec("UPDATE envelopes SET name = $1, balance = $2, target = $3 WHERE id = $4", env.Name, env.Balance, env.Target, env.Id)
+	res, err := tx.Exec(`
+		UPDATE envelopes
+		SET name = $1, balance = $2, target = $3
+		WHERE id = $4`, env.Name, env.Balance, env.Target, env.Id)
 	rows, _ := res.RowsAffected()
 	log.Printf(`%d affected rows`, rows)
 
@@ -197,7 +205,12 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
-	id := r.FormValue("id")
+	id, err := uuid.Parse(r.FormValue("id"))
+	if err != nil {
+		log.Printf(`detail: can't parse ID: %s`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
 
 	type Event struct {
 		Date    string
@@ -207,7 +220,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 
 	param := struct {
-		Id     string
+		Id     uuid.UUID
 		Name   string
 		Target int
 		Events []Event
@@ -223,12 +236,18 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	if err := tx.QueryRow("SELECT name, target FROM envelopes WHERE id = $1", id).Scan(&param.Name, &param.Target); err != nil {
+	if err := tx.QueryRow(`
+		SELECT name, target
+		FROM envelopes
+		WHERE id = $1`, id).Scan(&param.Name, &param.Target); err != nil {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
-	rows, err := tx.Query("SELECT id, date, name, balance, target FROM history WHERE envelope = $1", id)
+	rows, err := tx.Query(`
+		SELECT id, date, name, balance, target
+		FROM history
+		WHERE envelope = $1`, id)
 	if err != nil {
 		log.Printf(`can't query history for envelope %s: %s`, id, err)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
@@ -238,7 +257,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	for rows.Next() {
 		var e Event
-		var eventId string
+		var eventId uuid.UUID
 		if err := rows.Scan(&eventId, &e.Date, &e.Name, &e.Balance, &e.Target); err != nil {
 			log.Printf(`can't scan event %s: %s`, eventId, err)
 		}
@@ -291,10 +310,18 @@ func setupDB(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec("CREATE TABLE IF NOT EXISTS envelopes (id UUID PRIMARY KEY, name STRING, balance INTEGER, target INTEGER)"); err != nil {
+
+	if _, err := tx.Exec(`
+		CREATE TABLE IF NOT EXISTS envelopes
+		(id UUID PRIMARY KEY, name STRING, balance INTEGER, target INTEGER)`); err != nil {
 		return err
 	}
-	if _, err := tx.Exec("CREATE TABLE IF NOT EXISTS history (id UUID PRIMARY KEY AUTOINCREMENT, envelope UUID, date DATETIME, name STRING, balance INTEGER, target INTEGER, FOREIGN KEY(envelope) REFERENCES envelopes(id))"); err != nil {
+
+	if _, err := tx.Exec(`
+		CREATE TABLE IF NOT EXISTS history
+		(id UUID PRIMARY KEY AUTOINCREMENT,
+		 envelope UUID, date DATETIME, name STRING, balance INTEGER, target INTEGER,
+		 FOREIGN KEY(envelope) REFERENCES envelopes(id))`); err != nil {
 		return err
 	}
 
