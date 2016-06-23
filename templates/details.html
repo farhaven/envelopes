@@ -11,22 +11,18 @@
 	<body>
 		<div class="e-container">
 			<h1>Envelope {{ .Id }}: {{ .Name }}</h1>
-			<h2>History</h2>
 			<table class="pure-table">
 				<thead>
 					<tr>
-						<td>Date</td>
-						<td>Name</td>
 						<td>Balance</td>
 						<td>Target</td>
+						<td>Name</td>
+						<td>Date</td>
 					</tr>
 				</thead>
 				<tbody>
 					{{ range .Events }}
 					<tr>
-						<td>{{ .Date }}</td>
-						<td>{{ .Name }}</td>
-
 						{{ if gt .Balance 0 }}
 						<td><span class="delta-ok">+{{ prettyDisplay .Balance }}</span></td>
 						{{ else if eq .Balance 0 }}
@@ -42,13 +38,16 @@
 						{{ else }}
 						<td><span class="delta-warn">{{ prettyDisplay .Target }}</span></td>
 						{{ end }}
+
+						<td>{{ .Name }}</td>
+						<td>{{ .Date }}</td>
 					</tr>
 					{{ end }}
 				</tbody>
 			</table>
-			<h2>Some other stuff</h2>
 			<form class="pure-form pure-form-aligned" action="/update" method="post">
 				<fieldset>
+					<legend>Properties</legend>
 					<input type="hidden" name="env-name" value="{{ .Name }}">
 					<input type="hidden" name="env-return" value="{{ .Id }}">
 
