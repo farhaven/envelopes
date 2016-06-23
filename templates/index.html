@@ -6,6 +6,8 @@
 		<link rel="stylesheet" href="/static/pure/pure-min.css">
 		<link rel="stylesheet" href="/static/pure/grids-responsive-min.css">
 		<link rel="stylesheet" href="/static/style.css">
+		<link rel="stylesheet" href="/static/sorttable/sort-table.min.css">
+		<script src="/static/sorttable/sort-table.min.css"></script>
 		<title>📩 Envelopes</title>
 	</head>
 	<body>
@@ -14,7 +16,7 @@
 			Total Delta: <span class="{{ .TotalDelta.Cls }}">{{ prettyDisplay .TotalDelta.Val }}</span>,
 			Total Balance: <span>{{ prettyDisplay .TotalBalance }}</span>
 			</div>
-			<table class="pure-table" id="envelopes">
+			<table class="pure-table js-sort" id="envelopes">
 				<thead>
 					<tr>
 						<td>Name</td>
