@@ -37,13 +37,16 @@ func (e *Envelope) String() string {
 func EnvelopeFromDB(tx *sql.Tx, id uuid.UUID) *Envelope {
 	e := Envelope{Id: id}
 
-	err := tx.QueryRow("SELECT id, balance, target FROM envelopes WHERE id = $1", id).Scan(&e.Id, &e.Balance, &e.Target)
+	err := tx.QueryRow(`
+		SELECT id, balance, target
+		FROM envelopes
+		WHERE id = $1 AND deleted = 'false'`, id).Scan(&e.Id, &e.Balance, &e.Target)
 	if err == nil {
 		return &e
 	}
 
 	e.Id = uuid.New()
-	if _, err := tx.Exec(`INSERT INTO envelopes VALUES ($1, "", 0, 0)`, e.Id); err != nil {
+	if _, err := tx.Exec(`INSERT INTO envelopes VALUES ($1, "", 0, 0, 'false')`, e.Id); err != nil {
 		log.Printf(`db insert failed: %s`, err)
 	}
 	return &e
@@ -66,7 +69,8 @@ func allEnvelopes(db *sql.DB) []*Envelope {
 			 FROM history
 			 WHERE date > DATE('now', 'start of month')
 			 GROUP BY envelope) AS h
-		ON e.id = h.envelope`)
+		ON e.id = h.envelope
+		WHERE e.deleted = 'false'`)
 	if err != nil {
 		log.Printf(`error querying DB: %v`, err)
 		return nil
@@ -108,12 +112,14 @@ func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	id := r.FormValue("id")
 
-	_, err := db.Exec("DELETE FROM envelopes WHERE id = $1", id)
+	_, err := db.Exec("UPDATE envelopes SET deleted = 'true' WHERE id = $1", id)
 	if err != nil {
 		log.Printf(`error deleting envelope: %s`, err)
 	}
 
-	_, err = db.Exec("DELETE FROM history WHERE envelope = $1", id)
+	_, err = db.Exec(`
+		INSERT INTO history
+		VALUES ($1, $2, '', 0, 0, datetime('now'), 'true')`, uuid.New(), id)
 	if err != nil {
 		log.Printf(`error deleting envelope history: %s`, err)
 	}
@@ -173,14 +179,12 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	log.Printf(`updating DB: name='%s', balance='%d', target='%d'`, env.Name, env.Balance, env.Target)
 
-	history_id := uuid.New().String()
-
 	_, err = tx.Exec(`
 		INSERT INTO history
-		VALUES ($1, $2, $3, $4, $5, datetime('now'))`,
-		history_id, env.Id, env.Name, deltaBalance, deltaTarget)
+		VALUES ($1, $2, $3, $4, $5, datetime('now'), 'false')`,
+		uuid.New(), env.Id, env.Name, deltaBalance, deltaTarget)
 	if err != nil {
-		log.Printf(`can't create history entry for change to envelope %s`, env.Id)
+		log.Printf(`can't create history entry for change to envelope %s: %s`, env.Id, err)
 		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
 	}
@@ -205,6 +209,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
+	log.Printf(`handling detail for id %s`, r.FormValue("id"))
 	id, err := uuid.Parse(r.FormValue("id"))
 	if err != nil {
 		log.Printf(`detail: can't parse ID: %s`, err)
@@ -217,6 +222,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		Name    string
 		Balance int
 		Target  int
+		Deleted bool
 	}
 
 	param := struct {
@@ -240,12 +246,13 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		SELECT name, target
 		FROM envelopes
 		WHERE id = $1`, id).Scan(&param.Name, &param.Target); err != nil {
+		log.Printf("Can't query DB: %s", err)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
 	rows, err := tx.Query(`
-		SELECT id, date, name, balance, target
+		SELECT id, date, name, balance, target, deleted
 		FROM history
 		WHERE envelope = $1`, id)
 	if err != nil {
@@ -258,8 +265,11 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var e Event
 		var eventId uuid.UUID
-		if err := rows.Scan(&eventId, &e.Date, &e.Name, &e.Balance, &e.Target); err != nil {
+		if err := rows.Scan(&eventId, &e.Date, &e.Name, &e.Balance, &e.Target, &e.Deleted); err != nil {
 			log.Printf(`can't scan event %s: %s`, eventId, err)
+		}
+		if e.Deleted {
+			e.Name = param.Name
 		}
 		param.Events = append(param.Events, e)
 	}
@@ -313,14 +323,14 @@ func setupDB(db *sql.DB) error {
 
 	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS envelopes
-		(id UUID PRIMARY KEY, name STRING, balance INTEGER, target INTEGER)`); err != nil {
+		(id UUID PRIMARY KEY, name STRING, balance INTEGER, target INTEGER, deleted BOOLEAN)`); err != nil {
 		return err
 	}
 
 	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS history
 		(id UUID PRIMARY KEY AUTOINCREMENT,
-		 envelope UUID, date DATETIME, name STRING, balance INTEGER, target INTEGER,
+		 envelope UUID, date DATETIME, name STRING, balance INTEGER, target INTEGER, deleted BOOLEAN,
 		 FOREIGN KEY(envelope) REFERENCES envelopes(id))`); err != nil {
 		return err
 	}
@@ -347,7 +357,7 @@ func main() {
 	}
 
 	var count int64
-	if err := db.QueryRow("SELECT count(*) FROM envelopes").Scan(&count); err != nil {
+	if err := db.QueryRow("SELECT count(*) FROM envelopes WHERE deleted = 'false'").Scan(&count); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf(`DB contains %d envelopes`, count)
