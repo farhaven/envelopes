@@ -22,7 +22,8 @@
 						<td>Name</td>
 						<td>Balance</td>
 						<td>Target</td>
-						<td>Delta</td>
+						<td>Delta (to target)</td>
+						<td>Delta (this month)</td>
 						<td>Delete</td>
 					</tr>
 				</thead>
@@ -36,6 +37,11 @@
 						<td><input type="number" step="any" min="0" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
 						<td>{{ prettyDisplay .Target }}</td>
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
+						{{ if lt .MonthDelta 0 }}
+						<td><span class="delta-warn">{{ prettyDisplay .MonthDelta }}</span></td>
+						{{ else }}
+						<td><span class="delta-ok">{{ prettyDisplay .MonthDelta }}</span></td>
+						{{ end }}
 					</form>
 					<td><a class="pure-button button-danger" href="/delete?id={{ .Id }}">X</a></td>
 				</tr>

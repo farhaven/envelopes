@@ -21,11 +21,12 @@ var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("template
 
 type Envelope struct {
 	// Values in Euro-cents
-	Id      int
-	Balance int
-	Target  int
-	Name    string
-	m       sync.Mutex
+	Id         int
+	Balance    int
+	Target     int
+	Name       string
+	MonthDelta int
+	m          sync.Mutex
 }
 
 func (e *Envelope) String() string {
@@ -59,7 +60,14 @@ func (e *Envelope) IncBalance(delta int) {
 func allEnvelopes(db *sql.DB) []*Envelope {
 	rv := []*Envelope{}
 
-	rows, err := db.Query("SELECT id, name, balance, target FROM envelopes")
+	rows, err := db.Query(`
+		SELECT e.id, e.name, e.balance, e.target, h.balance
+		FROM envelopes AS e LEFT OUTER JOIN
+			(SELECT envelope, sum(balance) AS balance, date
+			 FROM history
+			 WHERE date > DATE('now', 'start of month')
+			 GROUP BY envelope) AS h
+		ON e.id = h.envelope`)
 	if err != nil {
 		log.Printf(`error querying DB: %v`, err)
 		return nil
@@ -68,9 +76,13 @@ func allEnvelopes(db *sql.DB) []*Envelope {
 
 	for rows.Next() {
 		var e Envelope
-		if err := rows.Scan(&e.Id, &e.Name, &e.Balance, &e.Target); err != nil {
+		var delta sql.NullInt64
+		if err := rows.Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &delta); err != nil {
 			log.Printf(`error querying DB: %v`, err)
 			return nil
+		}
+		if delta.Valid {
+			e.MonthDelta = int(delta.Int64)
 		}
 		rv = append(rv, &e)
 	}
