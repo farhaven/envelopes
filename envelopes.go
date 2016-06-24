@@ -38,9 +38,9 @@ func EnvelopeFromDB(tx *sql.Tx, id uuid.UUID) *Envelope {
 	e := Envelope{Id: id}
 
 	err := tx.QueryRow(`
-		SELECT id, balance, target
+		SELECT id, name, balance, target
 		FROM envelopes
-		WHERE id = $1 AND deleted = 'false'`, id).Scan(&e.Id, &e.Balance, &e.Target)
+		WHERE id = $1 AND deleted = 'false'`, id).Scan(&e.Id, &e.Name, &e.Balance, &e.Target)
 	if err == nil {
 		return &e
 	}
@@ -226,13 +226,9 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 
 	param := struct {
-		Id     uuid.UUID
-		Name   string
-		Target int
+		Envelope *Envelope
 		Events []Event
-	}{
-		Id: id,
-	}
+	}{}
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -242,14 +238,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	if err := tx.QueryRow(`
-		SELECT name, target
-		FROM envelopes
-		WHERE id = $1`, id).Scan(&param.Name, &param.Target); err != nil {
-		log.Printf("Can't query DB: %s", err)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return
-	}
+	param.Envelope = EnvelopeFromDB(tx, id)
 
 	rows, err := tx.Query(`
 		SELECT id, date, name, balance, target, deleted
@@ -269,7 +258,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 			log.Printf(`can't scan event %s: %s`, eventId, err)
 		}
 		if e.Deleted {
-			e.Name = param.Name
+			e.Name = param.Envelope.Name
 		}
 		param.Events = append(param.Events, e)
 	}
