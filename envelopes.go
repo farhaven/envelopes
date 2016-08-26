@@ -351,6 +351,8 @@ func main() {
 	}
 	log.Printf(`DB contains %d envelopes`, count)
 
+	go dhtLoop()
+
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleRequest(db, w, r)
