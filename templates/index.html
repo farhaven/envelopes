@@ -34,7 +34,7 @@
 					<td><a href="/details?id={{ .Id }}">{{ .Name }}</a></td>
 					<form class="pure-form" action="/update" method="post">
 						<input type="hidden" name="env-id" value="{{ .Id }}">
-						<td><input type="number" step="any" min="0" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
+						<td><input type="number" step="any" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
 						<td>{{ prettyDisplay .Target }}</td>
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
 						{{ if lt .MonthDelta 0 }}
@@ -53,8 +53,8 @@
 			<form class="pure-form" action="/update" method="post">
 				<fieldset>
 					<input type="text" size="13" name="env-name" placeholder="Name" autofocus>
-					<input type="number" min="0" step="any" name="env-balance" placeholder="Balance">
-					<input type="number" min="0" step="any" name="env-target" placeholder="Target">
+					<input type="number" step="any" name="env-balance" placeholder="Balance">
+					<input type="number" step="any" name="env-target" placeholder="Target">
 					<button type="submit" class="pure-button pure-button-primary">Add new envelope</button>
 				</fieldset>
 			</form>
