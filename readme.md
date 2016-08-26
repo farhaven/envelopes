@@ -52,3 +52,6 @@ ToDo
 - [ ] Track history of changes
   - [ ] Make individual changes revertable
   - [X] Show (monthly) history
+- [ ] Merge data from multiple instances
+  - [ ] Instances discover each other through Bittorrent DHT and shared secret
+- [ ] Android build?
