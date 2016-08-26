@@ -21,9 +21,10 @@
 					<tr>
 						<td>Name</td>
 						<td>Balance</td>
+						<td>Monthly Target</td>
+						<td>Delta (this month)</td>
 						<td>Target</td>
 						<td>Delta (to target)</td>
-						<td>Delta (this month)</td>
 						<td>Delete</td>
 					</tr>
 				</thead>
@@ -35,13 +36,14 @@
 					<form class="pure-form" action="/update" method="post">
 						<input type="hidden" name="env-id" value="{{ .Id }}">
 						<td><input type="number" step="any" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
-						<td>{{ prettyDisplay .Target }}</td>
-						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
+						<td>{{ prettyDisplay .MonthTarget }}</td>
 						{{ if lt .MonthDelta 0 }}
 						<td><span class="delta-warn">{{ prettyDisplay .MonthDelta }}</span></td>
 						{{ else }}
 						<td><span class="delta-ok">{{ prettyDisplay .MonthDelta }}</span></td>
 						{{ end }}
+						<td>{{ prettyDisplay .Target }}</td>
+						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
 					</form>
 					<td><a class="pure-button button-danger" href="/delete?id={{ .Id }}">X</a></td>
 				</tr>
@@ -54,7 +56,7 @@
 				<fieldset>
 					<input type="text" size="13" name="env-name" placeholder="Name" autofocus>
 					<input type="number" step="any" name="env-balance" placeholder="Balance">
-					<input type="number" step="any" name="env-target" placeholder="Target">
+					<input type="number" step="any" name="env-monthtarget" placeholder="Monthly Target">
 					<button type="submit" class="pure-button pure-button-primary">Add new envelope</button>
 				</fieldset>
 			</form>

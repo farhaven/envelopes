@@ -27,6 +27,7 @@ type Envelope struct {
 	Target     int
 	Name       string
 	MonthDelta int
+	MonthTarget int
 	m          sync.Mutex
 }
 
@@ -38,15 +39,15 @@ func EnvelopeFromDB(tx *sql.Tx, id uuid.UUID) *Envelope {
 	e := Envelope{Id: id}
 
 	err := tx.QueryRow(`
-		SELECT id, name, balance, target
+		SELECT id, name, balance, target, monthtarget
 		FROM envelopes
-		WHERE id = $1 AND deleted = 'false'`, id).Scan(&e.Id, &e.Name, &e.Balance, &e.Target)
+		WHERE id = $1 AND deleted = 'false'`, id).Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &e.MonthTarget)
 	if err == nil {
 		return &e
 	}
 
 	e.Id = uuid.New()
-	if _, err := tx.Exec(`INSERT INTO envelopes VALUES ($1, "", 0, 0, 'false')`, e.Id); err != nil {
+	if _, err := tx.Exec(`INSERT INTO envelopes VALUES ($1, "", 0, 0, 'false', 0)`, e.Id); err != nil {
 		log.Printf(`db insert failed: %s`, err)
 	}
 	return &e
@@ -63,7 +64,7 @@ func allEnvelopes(db *sql.DB) []*Envelope {
 	rv := []*Envelope{}
 
 	rows, err := db.Query(`
-		SELECT e.id, e.name, e.balance, e.target, h.balance
+		SELECT e.id, e.name, e.balance, e.target, e.monthtarget, h.balance
 		FROM envelopes AS e LEFT OUTER JOIN
 			(SELECT envelope, sum(balance) AS balance, date
 			 FROM history
@@ -80,7 +81,7 @@ func allEnvelopes(db *sql.DB) []*Envelope {
 	for rows.Next() {
 		var e Envelope
 		var delta sql.NullInt64
-		if err := rows.Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &delta); err != nil {
+		if err := rows.Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &e.MonthTarget, &delta); err != nil {
 			log.Printf(`error querying DB: %v`, err)
 			return nil
 		}
@@ -119,7 +120,7 @@ func handleDeleteRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	_, err = db.Exec(`
 		INSERT INTO history
-		VALUES ($1, $2, '', 0, 0, datetime('now'), 'true')`, uuid.New(), id)
+		VALUES ($1, $2, '', 0, 0, datetime('now'), 'true', 0)`, uuid.New(), id)
 	if err != nil {
 		log.Printf(`error deleting envelope history: %s`, err)
 	}
@@ -132,6 +133,7 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 
 	log.Printf(`name: %s`, r.FormValue("env-name"))
 	log.Printf(`target: %s`, r.FormValue("env-target"))
+	log.Printf(`monthtarget: %s`, r.FormValue("env-monthtarget"))
 	log.Printf(`balance: %s`, r.FormValue("env-balance"))
 	log.Printf(`return: %s`, r.FormValue("env-return"))
 
@@ -177,12 +179,22 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		env.Target += deltaTarget
 	}
 
-	log.Printf(`updating DB: name='%s', balance='%d', target='%d'`, env.Name, env.Balance, env.Target)
+	deltaMonthTarget := 0
+	monthtgt, err := strconv.ParseFloat(r.FormValue("env-monthtarget"), 64)
+	if err != nil {
+		log.Printf(`err: %s`, err)
+	} else {
+		deltaMonthTarget = int(monthtgt*100) - env.MonthTarget
+		env.MonthTarget += deltaMonthTarget
+	}
+
+	log.Printf(`updating DB: name='%s', balance='%d', target='%d', monthtarget='%d', dt='%d'`,
+	           env.Name, env.Balance, env.Target, env.MonthTarget, deltaMonthTarget)
 
 	_, err = tx.Exec(`
 		INSERT INTO history
-		VALUES ($1, $2, $3, $4, $5, datetime('now'), 'false')`,
-		uuid.New(), env.Id, env.Name, deltaBalance, deltaTarget)
+		VALUES ($1, $2, $3, $4, $5, datetime('now'), 'false', $6)`,
+		uuid.New(), env.Id, env.Name, deltaBalance, deltaTarget, deltaMonthTarget)
 	if err != nil {
 		log.Printf(`can't create history entry for change to envelope %s: %s`, env.Id, err)
 		http.Redirect(w, r, returnTo, http.StatusSeeOther)
@@ -190,8 +202,8 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := tx.Exec(`
 		UPDATE envelopes
-		SET name = $1, balance = $2, target = $3
-		WHERE id = $4`, env.Name, env.Balance, env.Target, env.Id)
+		SET name = $1, balance = $2, target = $3, monthtarget = $4
+		WHERE id = $5`, env.Name, env.Balance, env.Target, env.MonthTarget, env.Id)
 	rows, _ := res.RowsAffected()
 	log.Printf(`%d affected rows`, rows)
 
@@ -222,6 +234,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 		Name    string
 		Balance int
 		Target  int
+		MonthTarget int
 		Deleted bool
 	}
 
@@ -241,7 +254,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	param.Envelope = EnvelopeFromDB(tx, id)
 
 	rows, err := tx.Query(`
-		SELECT id, date, name, balance, target, deleted
+		SELECT id, date, name, balance, target, monthtarget, deleted
 		FROM history
 		WHERE envelope = $1`, id)
 	if err != nil {
@@ -254,7 +267,7 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var e Event
 		var eventId uuid.UUID
-		if err := rows.Scan(&eventId, &e.Date, &e.Name, &e.Balance, &e.Target, &e.Deleted); err != nil {
+		if err := rows.Scan(&eventId, &e.Date, &e.Name, &e.Balance, &e.Target, &e.MonthTarget, &e.Deleted); err != nil {
 			log.Printf(`can't scan event %s: %s`, eventId, err)
 		}
 		if e.Deleted {
@@ -312,14 +325,19 @@ func setupDB(db *sql.DB) error {
 
 	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS envelopes
-		(id UUID PRIMARY KEY, name STRING, balance INTEGER, target INTEGER, deleted BOOLEAN)`); err != nil {
+		(id UUID PRIMARY KEY, name STRING,
+		 balance INTEGER,
+		 target INTEGER, monthtarget INTEGER,
+		 deleted BOOLEAN)`); err != nil {
 		return err
 	}
 
 	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS history
 		(id UUID PRIMARY KEY AUTOINCREMENT,
-		 envelope UUID, date DATETIME, name STRING, balance INTEGER, target INTEGER, deleted BOOLEAN,
+		 envelope UUID, date DATETIME, name STRING,
+		 balance INTEGER, target INTEGER, monthtarget INTEGER,
+		 deleted BOOLEAN,
 		 FOREIGN KEY(envelope) REFERENCES envelopes(id))`); err != nil {
 		return err
 	}

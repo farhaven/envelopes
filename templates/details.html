@@ -16,6 +16,7 @@
 					<tr>
 						<td>Balance</td>
 						<td>Target</td>
+						<td>Monthly Target</td>
 						<td>Name</td>
 						<td>Date</td>
 						<td>Deleted</td>
@@ -40,6 +41,14 @@
 						<td><span class="delta-warn">{{ prettyDisplay .Target }}</span></td>
 						{{ end }}
 
+						{{ if gt .MonthTarget 0 }}
+						<td><span class="delta-ok">+{{ prettyDisplay .MonthTarget }}</span></td>
+						{{ else if eq .MonthTarget 0 }}
+						<td>0</td>
+						{{ else }}
+						<td><span class="delta-warn">{{ prettyDisplay .MonthTarget }}</span></td>
+						{{ end }}
+
 						<td>{{ .Name }}</td>
 						<td>{{ .Date }}</td>
 
@@ -61,6 +70,11 @@
 					<div class="pure-control-group">
 						<label for="name">Name</label>
 						<input id="name" type="text" name="env-name" value="{{ .Envelope.Name }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="monthtarget">Monthly Target</label>
+						<input id="monthtarget" type="number" step="any" name="env-monthtarget" value="{{ prettyDisplay .Envelope.MonthTarget }}">
 					</div>
 
 					<div class="pure-control-group">
