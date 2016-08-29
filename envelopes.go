@@ -369,7 +369,8 @@ func main() {
 	}
 	log.Printf(`DB contains %d envelopes`, count)
 
-	go dhtLoop()
+	pm := PeerManager{}
+	go pm.Loop()
 
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
