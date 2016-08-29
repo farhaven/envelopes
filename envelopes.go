@@ -288,9 +288,11 @@ func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	es := allEnvelopes(db)
 	delta := int(0)
 	balance := int(0)
+	monthtarget := int(0)
 	for i := range es {
 		delta += es[i].Balance - es[i].Target
 		balance += es[i].Balance
+		monthtarget += es[i].MonthTarget
 	}
 	dcls := "delta-ok"
 	if delta < 0 {
@@ -303,6 +305,7 @@ func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 			Val int
 		}
 		TotalBalance int
+		MonthTarget int
 	}{
 		Envelopes: es,
 		TotalDelta: struct {
@@ -310,6 +313,7 @@ func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 			Val int
 		}{dcls, delta},
 		TotalBalance: balance,
+		MonthTarget: monthtarget,
 	}
 
 	if err := templ.ExecuteTemplate(w, "index.html", param); err != nil {
