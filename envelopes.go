@@ -338,7 +338,7 @@ func setupDB(db *sql.DB) error {
 
 	if _, err := tx.Exec(`
 		CREATE TABLE IF NOT EXISTS history
-		(id UUID PRIMARY KEY AUTOINCREMENT,
+		(id UUID PRIMARY KEY,
 		 envelope UUID, date DATETIME, name STRING,
 		 balance INTEGER, target INTEGER, monthtarget INTEGER,
 		 deleted BOOLEAN,
