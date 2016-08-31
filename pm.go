@@ -51,7 +51,7 @@ func NewPeerManager() *PeerManager {
 		log.Fatalf(`can't create SUB socket: %s`, err)
 	}
 
-	pm.pubchan = make(chan interface{})
+	pm.pubchan = make(chan interface{}, 20)
 	pm.addrchan = make(chan interface{}, 20)
 
 	if pm.d, err = dht.New(conf); err != nil {
@@ -165,13 +165,14 @@ func (pm *PeerManager) Loop() {
 			log.Printf(`tgt: %s, src: %s, msg: %v`, tgt, src, msg[2:])
 
 			pm.mtx.Lock()
-			if _, ok := pm.friends[src]; !ok {
+			_, ok := pm.friends[src]
+			pm.friends[src] = msg[2:]
+			pm.mtx.Unlock()
+
+			if !ok {
 				log.Printf(`%s is a new friend!`, src)
 				pm.Publish(src, []string{"hello friend :)"})
 			}
-
-			pm.friends[src] = msg[2:]
-			pm.mtx.Unlock()
 
 			return nil
 		})
