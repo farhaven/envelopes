@@ -112,6 +112,10 @@ func (pm *PeerManager) Loop() {
 				return nil
 			}
 
+			if tgt != pm.nick && tgt != "*" {
+				log.Printf(`the following message is not for me. weird`)
+			}
+
 			log.Printf(`tgt: %s, src: %s, msg: %v`, tgt, src, msg[2:])
 
 			if _, ok := pm.friends[src]; !ok {
