@@ -23,6 +23,14 @@ type PeerManager struct {
 	nick     string
 	friends  map[string]bool
 	venue    string
+
+	pubkey string
+	privkey string
+}
+
+func init() {
+	zmq.AuthSetVerbose(true)
+	zmq.AuthStart()
 }
 
 func NewPeerManager() PeerManager {
@@ -60,6 +68,17 @@ func NewPeerManager() PeerManager {
 
 	pm.sub.SetSubscribe("*")
 	pm.sub.SetSubscribe(pm.nick)
+
+	pm.pubkey = "O36ghIt]]XlwH!C?/$XWd2U/S2nXaM/.zaf6<EL+"
+	pm.privkey = "-N%06D]D^+uw0v}EJjOeS-=>9f$N#E]u}}@?GBv["
+
+	zmq.AuthCurveAdd("*", pm.pubkey)
+	if err := pm.pub.ServerAuthCurve("*", pm.privkey); err != nil {
+		log.Fatalf(`can't configure server auth: %s`, err)
+	}
+	if err := pm.sub.ClientAuthCurve(pm.pubkey, pm.pubkey, pm.privkey); err != nil {
+		log.Fatalf(`can't configure client auth: %s`, err)
+	}
 
 	return pm
 }
