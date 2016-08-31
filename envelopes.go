@@ -290,6 +290,12 @@ func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 }
 
 func handleRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
+	if r.URL.String() != "/" {
+		log.Printf(`ignoring request for %s`, r.URL)
+		http.NotFound(w, r)
+		return
+	}
+
 	log.Printf(`request: %v`, r.URL)
 
 	w.Header().Add("Content-Type", "text/html")
