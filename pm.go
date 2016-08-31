@@ -39,9 +39,6 @@ func NewPeerManager() PeerManager {
 		log.Fatalf(`can't create SUB socket: %s`, err)
 	}
 
-	pm.sub.SetSubscribe("*")
-	pm.sub.SetSubscribe(pm.nick)
-
 	pm.pubchan = make(chan []string)
 	pm.addrchan = make(chan interface{}, 20)
 
@@ -60,6 +57,9 @@ func NewPeerManager() PeerManager {
 	log.Printf(`I will meet my friends at %s`, pm.venue)
 
 	pm.friends = make(map[string]bool)
+
+	pm.sub.SetSubscribe("*")
+	pm.sub.SetSubscribe(pm.nick)
 
 	return pm
 }
