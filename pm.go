@@ -1,6 +1,10 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/sha1"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -17,6 +21,8 @@ type PeerManager struct {
 	pubchan  chan []string
 	addrchan chan interface{}
 	r        *zmq.Reactor
+	nick     string
+	friends  map[string]bool
 }
 
 func NewPeerManager() PeerManager {
@@ -32,7 +38,9 @@ func NewPeerManager() PeerManager {
 	if pm.sub, err = zmq.NewSocket(zmq.SUB); err != nil {
 		log.Fatalf(`can't create SUB socket: %s`, err)
 	}
-	pm.sub.SetSubscribe("")
+
+	pm.sub.SetSubscribe("*")
+	pm.sub.SetSubscribe(pm.nick)
 
 	pm.pubchan = make(chan []string)
 	pm.addrchan = make(chan interface{}, 20)
@@ -41,12 +49,23 @@ func NewPeerManager() PeerManager {
 		log.Fatalf(`can't create DHT: %s`, err)
 	}
 
+	buf := make([]byte, 4)
+	rand.Read(buf)
+	pm.nick = hex.EncodeToString(buf)
+	log.Printf(`my nickname is %s`, pm.nick)
+
+	pm.friends = make(map[string]bool)
+
 	return pm
 }
 
 func (pm *PeerManager) Loop() {
 	/* XXX: Autogenerate? */
-	ih, err := dht.DecodeInfoHash("6d062837ce8d379e5c808f10b4ad70a678e96a8a")
+	sum := sha1.Sum([]byte("LetsMeetHere"))
+
+	log.Printf(`I will meet my friends at %s`, hex.EncodeToString(sum[:]))
+
+	ih, err := dht.DecodeInfoHash(hex.EncodeToString(sum[:]))
 	if err != nil {
 		log.Printf(`can't decode infohash: %s`, err)
 		return
@@ -75,17 +94,35 @@ func (pm *PeerManager) Loop() {
 	}()
 	go func() {
 		r := zmq.NewReactor()
-		r.AddSocket(pm.sub, zmq.POLLIN, func (s zmq.State) error {
+		r.AddSocket(pm.sub, zmq.POLLIN, func(s zmq.State) error {
 			/* Handle socket input here */
-			log.Printf(`available data on SUB socket`)
 			msg, err := pm.sub.RecvMessage(0)
 			if err != nil {
 				return err
 			}
-			log.Printf(`got msg %v from SUB socket`, msg)
+
+			if len(msg) < 2 {
+				return errors.New(`short message received`)
+			}
+
+			tgt := msg[0]
+			src := msg[1]
+
+			if src == pm.nick {
+				return nil
+			}
+
+			log.Printf(`tgt: %s, src: %s, msg: %v`, tgt, src, msg[2:])
+
+			if _, ok := pm.friends[src]; !ok {
+				log.Printf(`%s is a new friend!`, src)
+				pm.friends[src] = true
+				pm.pubchan <- []string{src, pm.nick, "hello friend :)"}
+			}
+
 			return nil
 		})
-		r.AddChannel(pm.addrchan, 1, func (a interface{}) error {
+		r.AddChannel(pm.addrchan, 1, func(a interface{}) error {
 			addr := a.(string)
 			pm.connectToPeer(addr)
 			return nil
@@ -103,7 +140,7 @@ func (pm *PeerManager) Loop() {
 		/* This is just for testing */
 		i := 0
 		for {
-			pm.pubchan <- []string{"foo", "bar", fmt.Sprintf("%d", i)}
+			pm.pubchan <- []string{"*", pm.nick, fmt.Sprintf("%d", i)}
 			i++
 			time.Sleep(1 * time.Second)
 		}
@@ -137,8 +174,6 @@ func (pm *PeerManager) connectToPeer(ip string) {
 	if err != nil {
 		log.Fatalf(`can't parse tcp address %s: %s`, addr, err)
 	}
-
-	log.Printf(`got a new peer: %s`, addr)
 
 	if err := pm.sub.Connect(fmt.Sprintf("tcp://%s:%d", addr.IP, addr.Port)); err != nil {
 		log.Fatalf(`can't connect SUB to %s: %s`, addr, err)
