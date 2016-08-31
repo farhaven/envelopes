@@ -17,6 +17,30 @@ import (
 	zmq "github.com/pebbe/zmq4"
 )
 
+type Friend struct {
+	name string
+	msg  []string
+	mtx *sync.Mutex
+}
+
+func NewFriend(name string) *Friend {
+	return &Friend{name: name, mtx: &sync.Mutex{}}
+}
+
+func (f *Friend) String() string {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	return fmt.Sprintf("Name: %s, last message: %s", f.name, f.msg)
+}
+
+func (f *Friend) HandleMessage(msg []string) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	f.msg = msg
+}
+
 type PeerManager struct {
 	d        *dht.DHT
 	sub      *zmq.Socket
@@ -24,7 +48,7 @@ type PeerManager struct {
 	pubchan  chan interface{}
 	addrchan chan interface{}
 	nick     string
-	friends  map[string][]string
+	friends  map[string]*Friend
 	venue    string
 	mtx      *sync.RWMutex
 
@@ -68,7 +92,7 @@ func NewPeerManager() *PeerManager {
 	log.Printf(`My nickname is %s`, pm.nick)
 	log.Printf(`I will meet my friends at %s`, pm.venue)
 
-	pm.friends = make(map[string][]string)
+	pm.friends = make(map[string]*Friend)
 
 	pm.sub.SetSubscribe("*")
 	pm.sub.SetSubscribe(pm.nick)
@@ -98,18 +122,18 @@ func (pm *PeerManager) String() string {
 		fmt.Sprintf("\r\nI am %s", pm.nick),
 		fmt.Sprintf("I have %d friend(s)", len(pm.friends)),
 		fmt.Sprintf("We're meeting at '%s'", pm.venue),
-		"\r\nLast messages from my friends:\r\n",
+		"\r\nThese are my friends:\r\n",
 	}
 
-	for p, msg := range pm.friends {
-		s = append(s, fmt.Sprintf("%s: %v", p, msg))
+	for _, f := range pm.friends {
+		s = append(s, f.String())
 	}
 
 	return strings.Join(s, "\r\n")
 }
 
 func (pm *PeerManager) Publish(dst string, payload []string) {
-	msg := []string{ dst, pm.nick }
+	msg := []string{dst, pm.nick}
 	pm.pubchan <- append(msg, payload...)
 }
 
@@ -165,9 +189,14 @@ func (pm *PeerManager) Loop() {
 			log.Printf(`tgt: %s, src: %s, msg: %v`, tgt, src, msg[2:])
 
 			pm.mtx.Lock()
-			_, ok := pm.friends[src]
-			pm.friends[src] = msg[2:]
+			f, ok := pm.friends[src]
+			if !ok {
+				f = NewFriend(src)
+				pm.friends[src] = f
+			}
 			pm.mtx.Unlock()
+
+			f.HandleMessage(msg[2:])
 
 			if !ok {
 				log.Printf(`%s is a new friend!`, src)
