@@ -220,6 +220,14 @@ func handleUpdateRequest(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, returnTo, http.StatusSeeOther)
 }
 
+func handleDebug(pm *PeerManager, w http.ResponseWriter, r *http.Request) {
+	log.Println(`debug handler called`)
+
+	w.Header().Add("Content-Type", "text/plain")
+	w.Write([]byte("Peer manager stats:\r\n\r\n"))
+	w.Write([]byte(pm.String()))
+}
+
 func handleDetail(db *sql.DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`handling detail for id %s`, r.FormValue("id"))
 	id, err := uuid.Parse(r.FormValue("id"))
@@ -388,6 +396,9 @@ func main() {
 	})
 	http.HandleFunc("/details", func(w http.ResponseWriter, r *http.Request) {
 		handleDetail(db, w, r)
+	})
+	http.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
+		handleDebug(pm, w, r)
 	})
 	err = http.ListenAndServe("127.0.0.1:8081", nil)
 	if err != nil {
