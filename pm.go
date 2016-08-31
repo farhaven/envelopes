@@ -20,9 +20,9 @@ type PeerManager struct {
 	pub      *zmq.Socket
 	pubchan  chan []string
 	addrchan chan interface{}
-	r        *zmq.Reactor
 	nick     string
 	friends  map[string]bool
+	venue    string
 }
 
 func NewPeerManager() PeerManager {
@@ -49,10 +49,15 @@ func NewPeerManager() PeerManager {
 		log.Fatalf(`can't create DHT: %s`, err)
 	}
 
+	sum := sha1.Sum([]byte("LetsMeetHere"))
+	pm.venue = hex.EncodeToString(sum[:])
+
 	buf := make([]byte, 4)
 	rand.Read(buf)
 	pm.nick = hex.EncodeToString(buf)
-	log.Printf(`my nickname is %s`, pm.nick)
+
+	log.Printf(`My nickname is %s`, pm.nick)
+	log.Printf(`I will meet my friends at %s`, pm.venue)
 
 	pm.friends = make(map[string]bool)
 
@@ -60,12 +65,7 @@ func NewPeerManager() PeerManager {
 }
 
 func (pm *PeerManager) Loop() {
-	/* XXX: Autogenerate? */
-	sum := sha1.Sum([]byte("LetsMeetHere"))
-
-	log.Printf(`I will meet my friends at %s`, hex.EncodeToString(sum[:]))
-
-	ih, err := dht.DecodeInfoHash(hex.EncodeToString(sum[:]))
+	ih, err := dht.DecodeInfoHash(pm.venue)
 	if err != nil {
 		log.Printf(`can't decode infohash: %s`, err)
 		return
