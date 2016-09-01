@@ -57,7 +57,11 @@ func (f *Friend) String() string {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
-	return fmt.Sprintf("Name: %s, last message: %s, last seen: %s", f.name, f.msg.Payload, f.lastSeen)
+	if f.msg == nil {
+		return fmt.Sprintf(`Name: %s, no message, last seen: %s`, f.name, f.lastSeen)
+	}
+
+	return fmt.Sprintf("Name: %s, last message: %s (ID: %d), last seen: %s ago", f.name, f.msg.Payload, f.msg.Seq, time.Now().Sub(f.lastSeen))
 }
 
 func (f *Friend) HandleMessage(msg *BusMessage) {
@@ -66,7 +70,7 @@ func (f *Friend) HandleMessage(msg *BusMessage) {
 
 	if f.msg != nil && f.msg.Seq >= msg.Seq {
 		/* We've already seen this message */
-		log.Printf(`ignoring message with Seq=%d (already got %d)`, msg.Seq, f.msg.Seq)
+		log.Printf(`ignoring message from %s with Seq=%d (already got %d)`, f.name, msg.Seq, f.msg.Seq)
 		return
 	}
 
