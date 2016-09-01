@@ -18,6 +18,7 @@ import (
 type BusMessage struct {
 	From    string
 	To      string
+	Seq int64
 	Payload []string
 }
 
@@ -63,6 +64,12 @@ func (f *Friend) HandleMessage(msg *BusMessage) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
+	if f.msg != nil && f.msg.Seq >= msg.Seq {
+		/* We've already seen this message */
+		log.Printf(`ignoring message with Seq=%d (already got %d)`, msg.Seq, f.msg.Seq)
+		return
+	}
+
 	f.msg = msg
 	f.lastSeen = time.Now()
 }
@@ -74,6 +81,7 @@ type PeerManager struct {
 	friends    map[string]*Friend
 	oldfriends map[string]*Friend
 	venue      string
+	sequence   int64
 	mtx        *sync.RWMutex
 }
 
@@ -137,7 +145,11 @@ func (pm *PeerManager) String() string {
 }
 
 func (pm *PeerManager) Publish(dst string, payload []string) error {
-	m := &BusMessage{From: pm.nick, To: dst, Payload: payload}
+	pm.mtx.Lock()
+	pm.sequence++
+	m := &BusMessage{From: pm.nick, To: dst, Seq: pm.sequence, Payload: payload}
+	pm.mtx.Unlock()
+
 	_, err := pm.bus.Send(m.Bytes(), 0)
 	return err
 }
