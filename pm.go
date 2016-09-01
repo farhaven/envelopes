@@ -187,7 +187,8 @@ func (pm *PeerManager) Loop() {
 			/* Receive message */
 			m, err := NewBusMessage(pm.bus.Recv(0))
 			if err != nil {
-				log.Fatalf(`can't receive message from bus: %s`, err)
+				log.Printf(`can't receive message from bus: %s`, err)
+				continue
 			}
 
 			if m.To != pm.nick && m.To != "*" {
