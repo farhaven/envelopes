@@ -131,7 +131,7 @@ func (pm *PeerManager) String() string {
 
 	s := []string{
 		fmt.Sprintf("DHT: Port: %d", pm.d.Port()),
-		fmt.Sprintf("\r\nI am %s", pm.nick),
+		fmt.Sprintf("\r\nI am %s, my sequence ID is %d", pm.nick, pm.sequence),
 		fmt.Sprintf("I have %d friend(s)", len(pm.friends)),
 		fmt.Sprintf("We're meeting at '%s'", pm.venue),
 		"\r\nThese are my friends:\r\n",
