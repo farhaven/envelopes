@@ -8,6 +8,25 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type Event struct {
+	Date        string
+	Name        string
+	Balance     int
+	Target      int
+	MonthTarget int
+	Deleted     bool
+}
+
+type Envelope struct {
+	// Values in Euro-cents
+	Id          uuid.UUID
+	Balance     int
+	Target      int
+	Name        string
+	MonthDelta  int
+	MonthTarget int
+}
+
 type DB struct {
 	db *sql.DB
 }

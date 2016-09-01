@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"sync"
 
 	"github.com/google/uuid"
 )
@@ -16,30 +15,6 @@ var templFuncs = template.FuncMap{
 	"delta":         computeDelta,
 }
 var templ = template.Must(template.New("").Funcs(templFuncs).ParseGlob("templates/*.html"))
-
-type Event struct {
-	Date        string
-	Name        string
-	Balance     int
-	Target      int
-	MonthTarget int
-	Deleted     bool
-}
-
-type Envelope struct {
-	// Values in Euro-cents
-	Id          uuid.UUID
-	Balance     int
-	Target      int
-	Name        string
-	MonthDelta  int
-	MonthTarget int
-	m           sync.Mutex
-}
-
-func (e *Envelope) String() string {
-	return fmt.Sprintf("<Envelope '%s', Balance: %d, Target: %d>", e.Name, e.Balance, e.Target)
-}
 
 func prettyDisplay(cents int) string {
 	return fmt.Sprintf("%.02f", float64(cents)/100)
