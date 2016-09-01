@@ -243,7 +243,7 @@ func (pm *PeerManager) drainPeers() {
 			for _, x := range peers {
 				addr := dht.DecodePeerAddress(x)
 				if _, ok := seen[addr]; !ok {
-					pm.connectToPeer(a)
+					pm.connectToPeer(addr)
 				}
 				seen[addr] = struct{}{}
 			}
