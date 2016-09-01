@@ -131,8 +131,8 @@ func (d *DB) DeleteEnvelope(id string) {
 	}
 
 	_, err = d.db.Exec(`
-		INSERT INTO history
-		VALUES ($1, $2, '', 0, 0, datetime('now'), 'true', 0)`, uuid.New(), id)
+		INSERT INTO history (id, envelope, name, balance, target, monthtarget, deleted, date)
+		VALUES ($1, $2, '', 0, 0, 0, 'true', datetime('now'))`, uuid.New(), id)
 	if err != nil {
 		log.Printf(`error deleting envelope history: %s`, err)
 	}
@@ -159,8 +159,9 @@ func (d *DB) envelopeWithTx(tx *sql.Tx, id uuid.UUID) (*Envelope, error) {
 		return &e, nil
 	}
 
-	e.Id = uuid.New()
-	if _, err := tx.Exec(`INSERT INTO envelopes VALUES ($1, "", 0, 0, 'false', 0)`, e.Id); err != nil {
+	if _, err := tx.Exec(`
+		INSERT INTO envelopes(id, name, balance, target, monthtarget, deleted)
+		VALUES ($1, "", 0, 0, 0, 'false')`, e.Id); err != nil {
 		return nil, err
 	}
 	return &e, nil
