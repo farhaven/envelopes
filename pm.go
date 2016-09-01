@@ -44,18 +44,19 @@ func (b *BusMessage) Bytes() []byte {
 type Friend struct {
 	name string
 	msg  *BusMessage
+	lastSeen time.Time
 	mtx  *sync.Mutex
 }
 
 func NewFriend(name string) *Friend {
-	return &Friend{name: name, mtx: &sync.Mutex{}}
+	return &Friend{name: name, mtx: &sync.Mutex{}, lastSeen: time.Now()}
 }
 
 func (f *Friend) String() string {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
-	return fmt.Sprintf("Name: %s, last message: %s", f.name, f.msg.Payload)
+	return fmt.Sprintf("Name: %s, last message: %s, last seen: %s", f.name, f.msg.Payload, f.lastSeen)
 }
 
 func (f *Friend) HandleMessage(msg *BusMessage) {
@@ -63,6 +64,7 @@ func (f *Friend) HandleMessage(msg *BusMessage) {
 	defer f.mtx.Unlock()
 
 	f.msg = msg
+	f.lastSeen = time.Now()
 }
 
 type PeerManager struct {
@@ -72,6 +74,7 @@ type PeerManager struct {
 	addrchan chan string
 	nick     string
 	friends  map[string]*Friend
+	oldfriends map[string]*Friend
 	venue    string
 	mtx      *sync.RWMutex
 }
@@ -107,6 +110,7 @@ func NewPeerManager() *PeerManager {
 	log.Printf(`I will meet my friends at %s`, pm.venue)
 
 	pm.friends = make(map[string]*Friend)
+	pm.oldfriends = make(map[string]*Friend)
 
 	pm.mtx = &sync.RWMutex{}
 
@@ -126,6 +130,11 @@ func (pm *PeerManager) String() string {
 	}
 
 	for _, f := range pm.friends {
+		s = append(s, f.String())
+	}
+
+	s = append(s, "\r\nI haven't heard from these guys in a while:\r\n")
+	for _, f := range pm.oldfriends {
 		s = append(s, f.String())
 	}
 
@@ -157,6 +166,22 @@ func (pm *PeerManager) Loop() {
 	log.Printf(`BUS endpoint: %s`, ep)
 
 	go pm.drainPeers()
+
+	go func() {
+		for {
+			time.Sleep(2 * time.Second)
+			pm.mtx.Lock()
+			for name, f := range pm.friends {
+				if f.lastSeen.Add(10 * time.Second).Before(time.Now()) {
+					log.Printf(`haven't heard from %s in a while`, name)
+					delete(pm.friends, name)
+					pm.oldfriends[name] = f
+				}
+			}
+			pm.mtx.Unlock()
+		}
+	}()
+
 	go func() {
 		for {
 			/* Receive message */
