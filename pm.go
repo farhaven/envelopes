@@ -165,10 +165,6 @@ func (pm *PeerManager) Loop() {
 				log.Fatalf(`can't receive message from bus: %s`, err)
 			}
 
-			if m.From == pm.nick {
-				log.Fatal(`got a message from myself!`)
-			}
-
 			if m.To != pm.nick && m.To != "*" {
 				log.Printf(`the following message is not for me. weird`)
 			}
