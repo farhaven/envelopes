@@ -64,18 +64,19 @@ func (f *Friend) String() string {
 	return fmt.Sprintf("Name: %s, last message: %s (ID: %d), last seen: %s ago", f.name, f.msg.Payload, f.msg.Seq, time.Now().Sub(f.lastSeen))
 }
 
-func (f *Friend) HandleMessage(msg *BusMessage) {
+func (f *Friend) HandleMessage(m *BusMessage) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
-	if f.msg != nil && f.msg.Seq >= msg.Seq {
+	if f.msg != nil && f.msg.Seq >= m.Seq {
 		/* We've already seen this message */
-		log.Printf(`ignoring message from %s with Seq=%d (already got %d)`, f.name, msg.Seq, f.msg.Seq)
 		return
 	}
 
-	f.msg = msg
+	f.msg = m
 	f.lastSeen = time.Now()
+
+	log.Printf(`tgt: %s, src: %s, msg: %v`, m.To, m.From, m.Payload)
 }
 
 type PeerManager struct {
@@ -215,8 +216,6 @@ func (pm *PeerManager) Loop() {
 			if m.To != pm.nick && m.To != "*" {
 				continue
 			}
-
-			log.Printf(`tgt: %s, src: %s, msg: %v`, m.To, m.From, m.Payload)
 
 			pm.mtx.Lock()
 			f, ok := pm.friends[m.From]
