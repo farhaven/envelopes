@@ -190,13 +190,14 @@ func (pm *PeerManager) Loop() {
 				continue
 			}
 
+			/* Ignore messages from ourselves */
 			if m.From == pm.nick {
-				/* Ignore messages from ourselves */
 				continue
 			}
 
+			/* Ignore messages not to 'everyone' or us */
 			if m.To != pm.nick && m.To != "*" {
-				log.Printf(`the following message is not for me. weird`)
+				continue
 			}
 
 			log.Printf(`tgt: %s, src: %s, msg: %v`, m.To, m.From, m.Payload)
