@@ -42,10 +42,10 @@ func (b *BusMessage) Bytes() []byte {
 }
 
 type Friend struct {
-	name string
-	msg  *BusMessage
+	name     string
+	msg      *BusMessage
 	lastSeen time.Time
-	mtx  *sync.Mutex
+	mtx      *sync.Mutex
 }
 
 func NewFriend(name string) *Friend {
@@ -68,15 +68,13 @@ func (f *Friend) HandleMessage(msg *BusMessage) {
 }
 
 type PeerManager struct {
-	d        *dht.DHT
-	bus      *nn.BusSocket
-	pubchan  chan *BusMessage
-	addrchan chan string
-	nick     string
-	friends  map[string]*Friend
+	d          *dht.DHT
+	bus        *nn.BusSocket
+	nick       string
+	friends    map[string]*Friend
 	oldfriends map[string]*Friend
-	venue    string
-	mtx      *sync.RWMutex
+	venue      string
+	mtx        *sync.RWMutex
 }
 
 func NewPeerManager() *PeerManager {
@@ -91,9 +89,6 @@ func NewPeerManager() *PeerManager {
 	if err != nil {
 		log.Fatalf(`can't create BUS socket: %s`, err)
 	}
-
-	pm.pubchan = make(chan *BusMessage)
-	pm.addrchan = make(chan string)
 
 	if pm.d, err = dht.New(conf); err != nil {
 		log.Fatalf(`can't create DHT: %s`, err)
@@ -141,8 +136,10 @@ func (pm *PeerManager) String() string {
 	return strings.Join(s, "\r\n")
 }
 
-func (pm *PeerManager) Publish(dst string, payload []string) {
-	pm.pubchan <- &BusMessage{From: pm.nick, To: dst, Payload: payload}
+func (pm *PeerManager) Publish(dst string, payload []string) error {
+	m := &BusMessage{From: pm.nick, To: dst, Payload: payload}
+	_, err := pm.bus.Send(m.Bytes(), 0)
+	return err
 }
 
 func (pm *PeerManager) Loop() {
@@ -172,11 +169,13 @@ func (pm *PeerManager) Loop() {
 			time.Sleep(2 * time.Second)
 			pm.mtx.Lock()
 			for name, f := range pm.friends {
+				f.mtx.Lock()
 				if f.lastSeen.Add(10 * time.Second).Before(time.Now()) {
 					log.Printf(`haven't heard from %s in a while`, name)
-					delete(pm.friends, name)
 					pm.oldfriends[name] = f
+					delete(pm.friends, name)
 				}
+				f.mtx.Unlock()
 			}
 			pm.mtx.Unlock()
 		}
@@ -188,6 +187,11 @@ func (pm *PeerManager) Loop() {
 			m, err := NewBusMessage(pm.bus.Recv(0))
 			if err != nil {
 				log.Printf(`can't receive message from bus: %s`, err)
+				continue
+			}
+
+			if m.From == pm.nick {
+				/* Ignore messages from ourselves */
 				continue
 			}
 
@@ -215,32 +219,11 @@ func (pm *PeerManager) Loop() {
 	}()
 
 	go func() {
-		for {
-			m := <-pm.pubchan
-			b := m.Bytes()
-			log.Printf(`sending %v`, string(b))
-			n, err := pm.bus.Send(b, nn.DontWait)
-			if err != nil {
-				log.Fatalf(`can't send to bus: %s`, err)
-			}
-			log.Printf(`sent %d of %d bytes`, n, len(m.Bytes()))
-		}
-	}()
-
-	go func() {
-		for {
-			a := <-pm.addrchan
-			pm.connectToPeer(a)
-		}
-	}()
-
-	go func() {
-		/* This is just for testing */
 		i := 0
 		for {
-			pm.Publish("*", []string{"test", fmt.Sprintf("%d", i)})
+			pm.Publish("*", []string{"I'm alive", fmt.Sprintf("%d", i)})
 			i++
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 
@@ -259,7 +242,7 @@ func (pm *PeerManager) drainPeers() {
 			for _, x := range peers {
 				addr := dht.DecodePeerAddress(x)
 				if _, ok := seen[addr]; !ok {
-					pm.addrchan <- addr
+					pm.connectToPeer(a)
 				}
 				seen[addr] = struct{}{}
 			}
@@ -268,9 +251,7 @@ func (pm *PeerManager) drainPeers() {
 }
 
 func (pm *PeerManager) connectToPeer(addr string) {
-	ep, err := pm.bus.Connect(fmt.Sprintf("tcp://%s", addr))
-	if err != nil {
-		log.Fatalf(`can't connect SUB to %s: %s`, addr, err)
+	if _, err := pm.bus.Connect(fmt.Sprintf("tcp://%s", addr)); err != nil {
+		log.Printf(`can't connect SUB to %s: %s`, addr, err)
 	}
-	log.Printf(`got ep %v`, ep)
 }
