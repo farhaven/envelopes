@@ -19,7 +19,8 @@ type BusMessage struct {
 	From    string
 	To      string
 	Seq int64
-	Payload []string
+	Cmd string
+	Payload map[string]interface{}
 }
 
 func NewBusMessage(data []byte, err error) (*BusMessage, error) {
@@ -32,6 +33,10 @@ func NewBusMessage(data []byte, err error) (*BusMessage, error) {
 		return nil, err
 	}
 	return rv, nil
+}
+
+func (b *BusMessage) String() string {
+	return fmt.Sprintf("[%s: %v (ID: %d)]", b.Cmd, b.Payload, b.Seq)
 }
 
 func (b *BusMessage) Bytes() []byte {
@@ -58,10 +63,10 @@ func (f *Friend) String() string {
 	defer f.mtx.Unlock()
 
 	if f.msg == nil {
-		return fmt.Sprintf(`Name: %s, no message, last seen: %s`, f.name, f.lastSeen)
+		return fmt.Sprintf(`%s: no message, last seen: %s`, f.name, f.lastSeen)
 	}
 
-	return fmt.Sprintf("Name: %s, last message: %s (ID: %d), last seen: %s ago", f.name, f.msg.Payload, f.msg.Seq, time.Now().Sub(f.lastSeen))
+	return fmt.Sprintf("%s: last message: %s, last seen: %s ago", f.name, f.msg, time.Now().Sub(f.lastSeen))
 }
 
 func (f *Friend) HandleMessage(m *BusMessage) {
@@ -76,7 +81,7 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 	f.msg = m
 	f.lastSeen = time.Now()
 
-	log.Printf(`tgt: %s, src: %s, msg: %v`, m.To, m.From, m.Payload)
+	log.Printf(`tgt: %s, src: %s, cmd: %s, msg: %v`, m.To, m.From, m.Cmd, m.Payload)
 }
 
 type PeerManager struct {
@@ -149,10 +154,10 @@ func (pm *PeerManager) String() string {
 	return strings.Join(s, "\r\n")
 }
 
-func (pm *PeerManager) Publish(dst string, payload []string) error {
+func (pm *PeerManager) Publish(dst string, cmd string, payload map[string]interface{}) error {
 	pm.mtx.Lock()
 	pm.sequence++
-	m := &BusMessage{From: pm.nick, To: dst, Seq: pm.sequence, Payload: payload}
+	m := &BusMessage{From: pm.nick, To: dst, Seq: pm.sequence, Cmd: cmd, Payload: payload}
 	pm.mtx.Unlock()
 
 	_, err := pm.bus.Send(m.Bytes(), 0)
@@ -229,7 +234,7 @@ func (pm *PeerManager) Loop() {
 
 			if !ok {
 				log.Printf(`%s is a new friend!`, m.From)
-				pm.Publish(m.From, []string{"hello friend :)"})
+				pm.Publish(m.From, "hello", map[string]interface{}{})
 			}
 		}
 	}()
@@ -237,7 +242,10 @@ func (pm *PeerManager) Loop() {
 	go func() {
 		i := 0
 		for {
-			pm.Publish("*", []string{"I'm alive", fmt.Sprintf("%d", i)})
+			args := map[string]interface{}{
+				"thing": i,
+			}
+			pm.Publish("*", "i'm alive", args)
 			i++
 			time.Sleep(5 * time.Second)
 		}
