@@ -3,12 +3,15 @@ package main
 import (
 	"database/sql"
 	"log"
+	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type Event struct {
+	EnvelopeId  uuid.UUID
+	Id          uuid.UUID
 	Date        string
 	Name        string
 	Balance     int
@@ -28,12 +31,19 @@ type Envelope struct {
 }
 
 type DB struct {
-	db *sql.DB
+	db     *sql.DB
+	Events chan Event
 }
 
 func OpenDB() (*DB, error) {
 	db, err := sql.Open("sqlite3", "envelopes.sqlite")
 	if err != nil {
+		return nil, err
+	}
+
+	rv := &DB{db, make(chan Event)}
+
+	if err := rv.setup(); err != nil {
 		return nil, err
 	}
 
@@ -43,14 +53,14 @@ func OpenDB() (*DB, error) {
 	}
 	log.Printf(`DB contains %d envelopes`, count)
 
-	return &DB{db}, nil
+	return rv, nil
 }
 
 func (d *DB) Close() error {
 	return d.db.Close()
 }
 
-func (d *DB) Setup() error {
+func (d *DB) setup() error {
 	tx, err := d.db.Begin()
 	if err != nil {
 		return err
@@ -194,45 +204,35 @@ func (d *DB) EnvelopeWithHistory(id uuid.UUID) (*Envelope, []Event, error) {
 	return envelope, events, nil
 }
 
-func (d *DB) UpdateEnvelope(id uuid.UUID, name string, dBalance, dTarget, dMonthTarget int, relative bool) error {
+func (d *DB) MergeEvent(e Event) error {
+	log.Printf(`merging event %v`, e)
+
 	tx, err := d.db.Begin()
 	if err != nil {
 		return err
 	}
 
-	env, err := d.envelopeWithTx(tx, id)
+	env, err := d.envelopeWithTx(tx, e.EnvelopeId)
 	if err != nil {
 		return err
 	}
 
-	log.Printf(`updating DB: name='%s', balance='%d', target='%d', monthtarget='%d'`,
-		env.Name, env.Balance, env.Target, env.MonthTarget)
-
-	/* Make parameters relative if they aren't already */
-	if !relative {
-		dBalance -= env.Balance
-		dTarget -= env.Target
-		dMonthTarget -= env.MonthTarget
-	}
-
-	log.Printf(`rel: %v, dB: %d dT: %d dMT: %d`, relative, dBalance, dTarget, dMonthTarget)
-
 	_, err = tx.Exec(`
-		INSERT INTO history
-		VALUES ($1, $2, $3, $4, $5, datetime('now'), 'false', $6)`,
-		uuid.New(), env.Id, name, dBalance, dTarget, dMonthTarget)
+		INSERT INTO history (id, envelope, name, balance, target, monthtarget, date, deleted)
+		VALUES ($1, $2, $3, $4, $5, $6, datetime('now'), 'false')`,
+		e.Id, e.EnvelopeId, e.Name, e.Balance, e.Target, e.MonthTarget)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if name == "" {
-		name = env.Name
+	if e.Name == "" {
+		e.Name = env.Name
 	}
 	res, err := tx.Exec(`
 		UPDATE envelopes
 		SET name = $1, balance = $2, target = $3, monthtarget = $4
-		WHERE id = $5`, name, env.Balance+dBalance, env.Target+dTarget, env.MonthTarget+dMonthTarget, env.Id)
+		WHERE id = $5`, e.Name, env.Balance+e.Balance, env.Target+e.Target, env.MonthTarget+e.MonthTarget, env.Id)
 	rows, _ := res.RowsAffected()
 	log.Printf(`%d affected rows`, rows)
 
@@ -242,4 +242,33 @@ func (d *DB) UpdateEnvelope(id uuid.UUID, name string, dBalance, dTarget, dMonth
 	}
 
 	return tx.Commit()
+}
+
+func (d *DB) UpdateEnvelope(id uuid.UUID, name string, dBalance, dTarget, dMonthTarget int) error {
+	env, err := d.Envelope(id)
+	if err != nil {
+		return err
+	}
+
+	/* Make parameters relative */
+	dBalance -= env.Balance
+	dTarget -= env.Target
+	dMonthTarget -= env.MonthTarget
+
+	log.Printf(`dB: %d dT: %d dMT: %d`, dBalance, dTarget, dMonthTarget)
+
+	evt := Event{
+		EnvelopeId:  env.Id,
+		Id:          uuid.New(),
+		Date:        time.Now().String(),
+		Name:        name,
+		Balance:     dBalance,
+		Target:      dTarget,
+		MonthTarget: dMonthTarget,
+		Deleted:     false,
+	}
+
+	d.Events <- evt
+
+	return d.MergeEvent(evt)
 }

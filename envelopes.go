@@ -40,7 +40,7 @@ func handleDeleteRequest(db *DB, w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-func handleUpdateRequest(db *DB, pm *PeerManager, w http.ResponseWriter, r *http.Request) {
+func handleUpdateRequest(db *DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`update: %v`, r.URL)
 
 	log.Printf(`name: %s`, r.FormValue("env-name"))
@@ -77,7 +77,7 @@ func handleUpdateRequest(db *DB, pm *PeerManager, w http.ResponseWriter, r *http
 		newMonthTarget = int(monthtgt * 100)
 	}
 
-	if err = db.UpdateEnvelope(id, name, newBalance, newTarget, newMonthTarget, false); err != nil {
+	if err = db.UpdateEnvelope(id, name, newBalance, newTarget, newMonthTarget); err != nil {
 		log.Printf(`can't update envelope %s: %s`, id, err)
 		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
@@ -177,11 +177,7 @@ func main() {
 		}
 	}()
 
-	if err := db.Setup(); err != nil {
-		log.Fatalf(`can't setup DB: %v`, err)
-	}
-
-	pm := NewPeerManager()
+	pm := NewPeerManager(db)
 	go pm.Loop()
 
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
@@ -189,7 +185,7 @@ func main() {
 		handleRequest(db, w, r)
 	})
 	http.HandleFunc("/update", func(w http.ResponseWriter, r *http.Request) {
-		handleUpdateRequest(db, pm, w, r)
+		handleUpdateRequest(db, w, r)
 	})
 	http.HandleFunc("/delete", func(w http.ResponseWriter, r *http.Request) {
 		handleDeleteRequest(db, w, r)
