@@ -182,7 +182,7 @@ func (d *DB) EnvelopeWithHistory(id uuid.UUID) (*Envelope, []Event, error) {
 	}
 
 	rows, err := tx.Query(`
-		SELECT id, date, name, balance, target, monthtarget, deleted
+		SELECT id, envelope, date, name, balance, target, monthtarget, deleted
 		FROM history
 		WHERE envelope = $1`, id)
 	if err != nil {
@@ -192,9 +192,8 @@ func (d *DB) EnvelopeWithHistory(id uuid.UUID) (*Envelope, []Event, error) {
 
 	for rows.Next() {
 		var e Event
-		var eventId uuid.UUID
-		if err := rows.Scan(&eventId, &e.Date, &e.Name, &e.Balance, &e.Target, &e.MonthTarget, &e.Deleted); err != nil {
-			log.Printf(`can't scan event %s: %s`, eventId, err)
+		if err := rows.Scan(&e.Id, &e.EnvelopeId, &e.Date, &e.Name, &e.Balance, &e.Target, &e.MonthTarget, &e.Deleted); err != nil {
+			log.Printf(`can't scan event %s: %s`, e.Id, err)
 		}
 		if e.Deleted {
 			e.Name = envelope.Name
