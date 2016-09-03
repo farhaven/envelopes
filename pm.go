@@ -84,7 +84,8 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 
 	log.Printf(`tgt: %s, src: %s, cmd: %s, payload: %v`, m.To, m.From, m.Cmd, m.Payload)
 
-	if m.Cmd == "event" {
+	switch m.Cmd {
+	case "event":
 		ev := Event{}
 		if err := json.Unmarshal([]byte(m.Payload), &ev); err != nil {
 			log.Printf(`can't unmarshal event payload: %s`, err)
@@ -94,6 +95,13 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 		if err := f.pm.db.MergeEvent(ev); err != nil {
 			log.Printf(`can't merge event: %s`, err)
 		}
+	case "hello":
+		f.pm.mtx.Lock()
+		defer f.pm.mtx.Unlock()
+
+		f.pm.need_full_sync = true
+	default:
+		log.Printf(`unknown command: %s`, m.Cmd)
 	}
 }
 
@@ -106,6 +114,7 @@ type PeerManager struct {
 	oldfriends map[string]*Friend
 	venue      string
 	sequence   int64
+	need_full_sync bool
 	mtx        *sync.RWMutex
 }
 
@@ -240,6 +249,7 @@ func (pm *PeerManager) Loop() {
 			if !ok {
 				f = NewFriend(m.From, pm)
 				pm.friends[m.From] = f
+				pm.need_full_sync = true
 			}
 			pm.mtx.Unlock()
 
@@ -268,6 +278,31 @@ func (pm *PeerManager) Loop() {
 				log.Fatalf(`can't marshal event: %s`, err)
 			}
 			pm.Publish("*", "event", string(buf))
+		}
+	}()
+
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			pm.mtx.Lock()
+			if !pm.need_full_sync {
+				pm.mtx.Unlock()
+				continue
+			}
+			pm.need_full_sync = false
+			pm.mtx.Unlock()
+
+			log.Println(`doing a full sync`)
+
+			for _, env := range pm.db.AllEnvelopes() {
+				_, events, err := pm.db.EnvelopeWithHistory(env.Id)
+				if err != nil {
+					log.Fatalf(`can't get events for envelope %s: %s`, env.Id, err)
+				}
+				for _, e := range events {
+					pm.db.Events <- e
+				}
+			}
 		}
 	}()
 
