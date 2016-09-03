@@ -33,7 +33,12 @@ func handleDeleteRequest(db *DB, w http.ResponseWriter, r *http.Request) {
 	log.Printf(`delete: %v`, r.URL)
 	log.Printf(`id: %s`, r.FormValue("id"))
 
-	id := r.FormValue("id")
+	id, err := uuid.Parse(r.FormValue("id"))
+	if err != nil {
+		log.Printf(`update: can't parse ID: %s`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
 
 	db.DeleteEnvelope(id)
 

@@ -122,20 +122,16 @@ func (d *DB) AllEnvelopes() []*Envelope {
 	return rv
 }
 
-func (d *DB) DeleteEnvelope(id string) {
-	/* TODO: make sure that id is a well formed UUID */
-
-	_, err := d.db.Exec("UPDATE envelopes SET deleted = 'true' WHERE id = $1", id)
-	if err != nil {
-		log.Printf(`error deleting envelope: %s`, err)
+func (d *DB) DeleteEnvelope(id uuid.UUID) error {
+	evt := Event{
+		EnvelopeId: id,
+		Id: uuid.New(),
+		Date: time.Now().String(),
 	}
 
-	_, err = d.db.Exec(`
-		INSERT INTO history (id, envelope, name, balance, target, monthtarget, deleted, date)
-		VALUES ($1, $2, '', 0, 0, 0, 'true', datetime('now'))`, uuid.New(), id)
-	if err != nil {
-		log.Printf(`error deleting envelope history: %s`, err)
-	}
+	d.Events <- evt
+
+	return d.MergeEvent(evt)
 }
 
 func (d *DB) Envelope(id uuid.UUID) (*Envelope, error) {
@@ -218,9 +214,9 @@ func (d *DB) MergeEvent(e Event) error {
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO history (id, envelope, name, balance, target, monthtarget, date, deleted)
-		VALUES ($1, $2, $3, $4, $5, $6, datetime('now'), 'false')`,
-		e.Id, e.EnvelopeId, e.Name, e.Balance, e.Target, e.MonthTarget)
+		INSERT INTO history (id, envelope, name, balance, target, monthtarget, deleted, date)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, datetime('now'))`,
+		e.Id, e.EnvelopeId, e.Name, e.Balance, e.Target, e.MonthTarget, e.Deleted)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -231,8 +227,8 @@ func (d *DB) MergeEvent(e Event) error {
 	}
 	res, err := tx.Exec(`
 		UPDATE envelopes
-		SET name = $1, balance = $2, target = $3, monthtarget = $4
-		WHERE id = $5`, e.Name, env.Balance+e.Balance, env.Target+e.Target, env.MonthTarget+e.MonthTarget, env.Id)
+		SET name = $1, balance = $2, target = $3, monthtarget = $4, deleted = $5
+		WHERE id = $6`, e.Name, env.Balance+e.Balance, env.Target+e.Target, env.MonthTarget+e.MonthTarget, e.Deleted, env.Id)
 	rows, _ := res.RowsAffected()
 	log.Printf(`%d affected rows`, rows)
 
