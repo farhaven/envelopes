@@ -1,13 +1,6 @@
 {
 	"comment": "",
 	"ignore": "test",
-	"package": [
-		{
-			"checksumSHA1": "GVv16+cI3h1gf20X0HVc76SQokc=",
-			"path": "github.com/op/go-nanomsg",
-			"revision": "48d7bb6353dec050b3020e54028984eea4d350d1",
-			"revisionTime": "2016-06-08T20:44:31Z"
-		}
-	],
+	"package": [],
 	"rootPath": "github.com/farhaven/envelopes"
 }
