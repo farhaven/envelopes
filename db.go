@@ -48,7 +48,7 @@ func OpenDB() (*DB, error) {
 	}
 
 	var count int64
-	if err := db.QueryRow("SELECT count(*) FROM envelopes WHERE deleted != 'true'").Scan(&count); err != nil {
+	if err := db.QueryRow("SELECT count(*) FROM envelopes WHERE not deleted").Scan(&count); err != nil {
 		return nil, err
 	}
 	log.Printf(`DB contains %d envelopes`, count)
@@ -99,7 +99,7 @@ func (d *DB) AllEnvelopes() []*Envelope {
 			 WHERE date > DATE('now', 'start of month')
 			 GROUP BY envelope) AS h
 		ON e.id = h.envelope
-		WHERE e.deleted != 'true'`)
+		WHERE not e.deleted`)
 	if err != nil {
 		log.Printf(`error querying DB: %v`, err)
 		return nil
@@ -151,7 +151,7 @@ func (d *DB) envelopeWithTx(tx *sql.Tx, id uuid.UUID) (*Envelope, error) {
 	err := tx.QueryRow(`
 		SELECT id, name, balance, target, monthtarget
 		FROM envelopes
-		WHERE id = $1 AND deleted != 'true'`, id).Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &e.MonthTarget)
+		WHERE id = $1 AND not deleted`, id).Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &e.MonthTarget)
 	if err == nil {
 		return &e, nil
 	}
