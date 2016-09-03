@@ -127,6 +127,7 @@ func (d *DB) DeleteEnvelope(id uuid.UUID) error {
 		EnvelopeId: id,
 		Id: uuid.New(),
 		Date: time.Now().String(),
+		Deleted: true,
 	}
 
 	d.Events <- evt
