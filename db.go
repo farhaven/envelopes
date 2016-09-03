@@ -150,12 +150,10 @@ func (d *DB) envelopeWithTx(tx *sql.Tx, id uuid.UUID) (*Envelope, error) {
 	err := tx.QueryRow(`
 		SELECT id, name, balance, target, monthtarget
 		FROM envelopes
-		WHERE id = $1 AND deleted = 'false'`, id).Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &e.MonthTarget)
+		WHERE id = $1 AND deleted != 'true'`, id).Scan(&e.Id, &e.Name, &e.Balance, &e.Target, &e.MonthTarget)
 	if err == nil {
 		return &e, nil
 	}
-
-	log.Printf(`err for %s: %s`, id, err)
 
 	if _, err := tx.Exec(`
 		INSERT INTO envelopes(id, name, balance, target, monthtarget, deleted)
