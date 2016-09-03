@@ -112,7 +112,6 @@ type PeerManager struct {
 func NewPeerManager(db *DB) *PeerManager {
 	conf := dht.NewConfig()
 	conf.Port = 55000
-	conf.CleanupPeriod = 3 * time.Second
 
 	pm := PeerManager{db: db}
 
