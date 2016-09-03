@@ -210,6 +210,7 @@ func (d *DB) MergeEvent(e Event) error {
 
 	env, err := d.envelopeWithTx(tx, e.EnvelopeId)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
@@ -225,17 +226,10 @@ func (d *DB) MergeEvent(e Event) error {
 	if e.Name == "" {
 		e.Name = env.Name
 	}
-	res, err := tx.Exec(`
+	tx.Exec(`
 		UPDATE envelopes
 		SET name = $1, balance = $2, target = $3, monthtarget = $4, deleted = $5
 		WHERE id = $6`, e.Name, env.Balance+e.Balance, env.Target+e.Target, env.MonthTarget+e.MonthTarget, e.Deleted, env.Id)
-	rows, _ := res.RowsAffected()
-	log.Printf(`%d affected rows`, rows)
-
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
 
 	return tx.Commit()
 }
