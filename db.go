@@ -156,7 +156,7 @@ func (d *DB) envelopeWithTx(tx *sql.Tx, id uuid.UUID) (*Envelope, error) {
 	}
 
 	if _, err := tx.Exec(`
-		INSERT INTO envelopes(id, name, balance, target, monthtarget, deleted)
+		INSERT OR IGNORE INTO envelopes(id, name, balance, target, monthtarget, deleted)
 		VALUES ($1, "", 0, 0, 0, 'false')`, e.Id); err != nil {
 		return nil, err
 	}
@@ -210,15 +210,17 @@ func (d *DB) MergeEvent(e Event) error {
 
 	env, err := d.envelopeWithTx(tx, e.EnvelopeId)
 	if err != nil {
+		log.Printf(`failed before history insert`)
 		tx.Rollback()
 		return err
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO history (id, envelope, name, balance, target, monthtarget, deleted, date)
+		INSERT OR IGNORE INTO history (id, envelope, name, balance, target, monthtarget, deleted, date)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, datetime('now'))`,
 		e.Id, e.EnvelopeId, e.Name, e.Balance, e.Target, e.MonthTarget, e.Deleted)
 	if err != nil {
+		log.Printf(`failed before envelope update`)
 		tx.Rollback()
 		return err
 	}
@@ -230,6 +232,8 @@ func (d *DB) MergeEvent(e Event) error {
 		UPDATE envelopes
 		SET name = $1, balance = $2, target = $3, monthtarget = $4, deleted = $5
 		WHERE id = $6`, e.Name, env.Balance+e.Balance, env.Target+e.Target, env.MonthTarget+e.MonthTarget, e.Deleted, env.Id)
+
+	log.Printf(`envelope update failed`)
 
 	return tx.Commit()
 }
