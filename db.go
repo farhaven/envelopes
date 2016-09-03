@@ -48,7 +48,7 @@ func OpenDB() (*DB, error) {
 	}
 
 	var count int64
-	if err := db.QueryRow("SELECT count(*) FROM envelopes WHERE deleted = 'false'").Scan(&count); err != nil {
+	if err := db.QueryRow("SELECT count(*) FROM envelopes WHERE deleted != 'true'").Scan(&count); err != nil {
 		return nil, err
 	}
 	log.Printf(`DB contains %d envelopes`, count)
