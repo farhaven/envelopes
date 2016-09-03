@@ -1,20 +1,27 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
+	"math/big"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/nictuku/dht"
 	"github.com/go-mangos/mangos"
 	"github.com/go-mangos/mangos/protocol/bus"
-	"github.com/go-mangos/mangos/transport/tcp"
+	"github.com/go-mangos/mangos/transport/tlstcp"
+	"github.com/nictuku/dht"
 )
 
 type BusMessage struct {
@@ -117,6 +124,7 @@ type PeerManager struct {
 	venue          string
 	sequence       int64
 	need_full_sync bool
+	opts map[string]interface{}
 	mtx            *sync.RWMutex
 }
 
@@ -126,12 +134,14 @@ func NewPeerManager(db *DB) *PeerManager {
 
 	pm := PeerManager{db: db}
 
+	pm.opts = map[string]interface{}{ mangos.OptionTLSConfig: pm.setupTLS() }
+
 	var err error
 	pm.bus, err = bus.NewSocket()
 	if err != nil {
 		log.Fatalf(`can't create BUS socket: %s`, err)
 	}
-	pm.bus.AddTransport(tcp.NewTransport())
+	pm.bus.AddTransport(tlstcp.NewTransport())
 
 	if pm.d, err = dht.New(conf); err != nil {
 		log.Fatalf(`can't create DHT: %s`, err)
@@ -153,6 +163,57 @@ func NewPeerManager(db *DB) *PeerManager {
 	pm.mtx = &sync.RWMutex{}
 
 	return &pm
+}
+
+func (pm *PeerManager) setupTLS() *tls.Config {
+	cert := pm.setupCertificate()
+
+	return &tls.Config{
+		InsecureSkipVerify: true,
+		Certificates:       []tls.Certificate{cert},
+	}
+}
+
+func (pm *PeerManager) setupCertificate() tls.Certificate {
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(4711),
+		Subject: pkix.Name{
+			Organization: []string{"unobtanium"},
+			CommonName:   "*",
+		},
+		DNSNames:              []string{`*`},
+		NotAfter:              time.Now().AddDate(0, 0, 10),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		SignatureAlgorithm:    x509.SHA512WithRSA,
+		PublicKeyAlgorithm:    x509.ECDSA,
+		SubjectKeyId:          []byte{1, 2, 3, 4, 5},
+		BasicConstraintsValid: true,
+		IsCA: true,
+	}
+
+	log.Printf(`generating 2048 bit RSA private key`)
+	priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+	pub := &priv.PublicKey
+	log.Printf(`building self-signed certificate`)
+	cert_raw, err := x509.CreateCertificate(rand.Reader, &template, &template, pub, priv)
+	if err != nil {
+		log.Fatalf(`can't generate TLS certificate: %s`, err)
+	}
+	log.Printf(`created a cert of length %d bytes`, len(cert_raw))
+
+	privbuf := &bytes.Buffer{}
+	pem.Encode(privbuf, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+
+	certbuf := &bytes.Buffer{}
+	pem.Encode(certbuf, &pem.Block{Type: "CERTIFICATE", Bytes: cert_raw})
+
+	cert, err := tls.X509KeyPair(certbuf.Bytes(), privbuf.Bytes())
+	if err != nil {
+		log.Fatalf(`can't build key pair: %s`, err)
+	}
+
+	return cert
 }
 
 func (pm *PeerManager) String() string {
@@ -202,7 +263,7 @@ func (pm *PeerManager) Loop() {
 
 	log.Printf(`DHT bound to port %d`, pm.d.Port())
 
-	if err := pm.bus.Listen(fmt.Sprintf("tcp://*:%d", pm.d.Port())); err != nil {
+	if err := pm.bus.ListenOptions(fmt.Sprintf("tls+tcp://*:%d", pm.d.Port()), pm.opts); err != nil {
 		log.Fatalf(`can't listen on BUS socket: %s`, err)
 	}
 
@@ -330,7 +391,7 @@ func (pm *PeerManager) drainPeers() {
 }
 
 func (pm *PeerManager) connectToPeer(addr string) {
-	if err := pm.bus.Dial(fmt.Sprintf("tcp://%s", addr)); err != nil {
+	if err := pm.bus.DialOptions(fmt.Sprintf("tls+tcp://%s", addr), pm.opts); err != nil {
 		log.Printf(`can't connect SUB to %s: %s`, addr, err)
 	}
 }
