@@ -124,7 +124,7 @@ type PeerManager struct {
 	venue          string
 	sequence       int64
 	need_full_sync bool
-	opts map[string]interface{}
+	opts           map[string]interface{}
 	mtx            *sync.RWMutex
 }
 
@@ -134,7 +134,7 @@ func NewPeerManager(db *DB) *PeerManager {
 
 	pm := PeerManager{db: db}
 
-	pm.opts = map[string]interface{}{ mangos.OptionTLSConfig: pm.setupTLS() }
+	pm.opts = map[string]interface{}{mangos.OptionTLSConfig: pm.setupTLS()}
 
 	var err error
 	pm.bus, err = bus.NewSocket()
