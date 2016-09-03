@@ -18,8 +18,8 @@ import (
 type BusMessage struct {
 	From    string
 	To      string
-	Seq int64
-	Cmd string
+	Seq     int64
+	Cmd     string
 	Payload string
 }
 
@@ -52,7 +52,7 @@ type Friend struct {
 	msg      *BusMessage
 	lastSeen time.Time
 	mtx      *sync.Mutex
-	pm *PeerManager
+	pm       *PeerManager
 }
 
 func NewFriend(name string, pm *PeerManager) *Friend {
@@ -98,22 +98,24 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 		defer f.pm.mtx.Unlock()
 
 		f.pm.need_full_sync = true
+	case "i'm alive":
+		/* nothing */
 	default:
 		log.Printf(`unhandled message: tgt: %s, src: %s, cmd: %s, payload: %v`, m.To, m.From, m.Cmd, m.Payload)
 	}
 }
 
 type PeerManager struct {
-	d          *dht.DHT
-	db *DB
-	bus        *nn.BusSocket
-	nick       string
-	friends    map[string]*Friend
-	oldfriends map[string]*Friend
-	venue      string
-	sequence   int64
+	d              *dht.DHT
+	db             *DB
+	bus            *nn.BusSocket
+	nick           string
+	friends        map[string]*Friend
+	oldfriends     map[string]*Friend
+	venue          string
+	sequence       int64
 	need_full_sync bool
-	mtx        *sync.RWMutex
+	mtx            *sync.RWMutex
 }
 
 func NewPeerManager(db *DB) *PeerManager {
