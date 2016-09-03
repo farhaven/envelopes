@@ -82,8 +82,6 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 	f.msg = m
 	f.lastSeen = time.Now()
 
-	log.Printf(`tgt: %s, src: %s, cmd: %s, payload: %v`, m.To, m.From, m.Cmd, m.Payload)
-
 	switch m.Cmd {
 	case "event":
 		ev := Event{}
@@ -101,7 +99,7 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 
 		f.pm.need_full_sync = true
 	default:
-		log.Printf(`unknown command: %s`, m.Cmd)
+		log.Printf(`unhandled message: tgt: %s, src: %s, cmd: %s, payload: %v`, m.To, m.From, m.Cmd, m.Payload)
 	}
 }
 
