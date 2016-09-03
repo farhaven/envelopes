@@ -391,6 +391,7 @@ func (pm *PeerManager) drainPeers() {
 }
 
 func (pm *PeerManager) connectToPeer(addr string) {
+	log.Printf(`dialing %s`, addr)
 	if err := pm.bus.DialOptions(fmt.Sprintf("tls+tcp://%s", addr), pm.opts); err != nil {
 		log.Printf(`can't connect SUB to %s: %s`, addr, err)
 	}
