@@ -99,7 +99,7 @@ func (d *DB) AllEnvelopes() []*Envelope {
 			 WHERE date > DATE('now', 'start of month')
 			 GROUP BY envelope) AS h
 		ON e.id = h.envelope
-		WHERE e.deleted = 'false'`)
+		WHERE e.deleted != 'true'`)
 	if err != nil {
 		log.Printf(`error querying DB: %v`, err)
 		return nil
