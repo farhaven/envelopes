@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/nictuku/dht"
-	nn "github.com/op/go-nanomsg"
+	"github.com/go-mangos/mangos"
+	"github.com/go-mangos/mangos/protocol/bus"
+	"github.com/go-mangos/mangos/transport/tcp"
 )
 
 type BusMessage struct {
@@ -108,7 +110,7 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 type PeerManager struct {
 	d              *dht.DHT
 	db             *DB
-	bus            *nn.BusSocket
+	bus            mangos.Socket
 	nick           string
 	friends        map[string]*Friend
 	oldfriends     map[string]*Friend
@@ -125,10 +127,11 @@ func NewPeerManager(db *DB) *PeerManager {
 	pm := PeerManager{db: db}
 
 	var err error
-	pm.bus, err = nn.NewBusSocket()
+	pm.bus, err = bus.NewSocket()
 	if err != nil {
 		log.Fatalf(`can't create BUS socket: %s`, err)
 	}
+	pm.bus.AddTransport(tcp.NewTransport())
 
 	if pm.d, err = dht.New(conf); err != nil {
 		log.Fatalf(`can't create DHT: %s`, err)
@@ -182,8 +185,7 @@ func (pm *PeerManager) Publish(dst, cmd, payload string) error {
 	m := &BusMessage{From: pm.nick, To: dst, Seq: pm.sequence, Cmd: cmd, Payload: payload}
 	pm.mtx.Unlock()
 
-	_, err := pm.bus.Send(m.Bytes(), 0)
-	return err
+	return pm.bus.Send(m.Bytes())
 }
 
 func (pm *PeerManager) Loop() {
@@ -200,11 +202,9 @@ func (pm *PeerManager) Loop() {
 
 	log.Printf(`DHT bound to port %d`, pm.d.Port())
 
-	ep, err := pm.bus.Bind(fmt.Sprintf("tcp://*:%d", pm.d.Port()))
-	if err != nil {
-		log.Fatalf(`can't bind BUS socket: %s`, err)
+	if err := pm.bus.Listen(fmt.Sprintf("tcp://*:%d", pm.d.Port())); err != nil {
+		log.Fatalf(`can't listen on BUS socket: %s`, err)
 	}
-	log.Printf(`BUS endpoint: %s`, ep)
 
 	go pm.drainPeers()
 
@@ -228,7 +228,7 @@ func (pm *PeerManager) Loop() {
 	go func() {
 		for {
 			/* Receive message */
-			m, err := NewBusMessage(pm.bus.Recv(0))
+			m, err := NewBusMessage(pm.bus.Recv())
 			if err != nil {
 				log.Printf(`can't receive message from bus: %s`, err)
 				continue
@@ -330,7 +330,7 @@ func (pm *PeerManager) drainPeers() {
 }
 
 func (pm *PeerManager) connectToPeer(addr string) {
-	if _, err := pm.bus.Connect(fmt.Sprintf("tcp://%s", addr)); err != nil {
+	if err := pm.bus.Dial(fmt.Sprintf("tcp://%s", addr)); err != nil {
 		log.Printf(`can't connect SUB to %s: %s`, addr, err)
 	}
 }
