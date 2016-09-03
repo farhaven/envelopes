@@ -155,6 +155,8 @@ func (d *DB) envelopeWithTx(tx *sql.Tx, id uuid.UUID) (*Envelope, error) {
 		return &e, nil
 	}
 
+	log.Printf(`err for %s: %s`, id, err)
+
 	if _, err := tx.Exec(`
 		INSERT INTO envelopes(id, name, balance, target, monthtarget, deleted)
 		VALUES ($1, "", 0, 0, 0, 'false')`, e.Id); err != nil {
