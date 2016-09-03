@@ -226,7 +226,7 @@ func (d *DB) MergeEvent(e Event) error {
 	if e.Name == "" {
 		e.Name = env.Name
 	}
-	_, err := tx.Exec(`
+	_, err = tx.Exec(`
 		UPDATE envelopes
 		SET name = $1, balance = $2, target = $3, monthtarget = $4, deleted = $5
 		WHERE id = $6`, e.Name, env.Balance+e.Balance, env.Target+e.Target, env.MonthTarget+e.MonthTarget, e.Deleted, env.Id)
