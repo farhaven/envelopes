@@ -375,16 +375,16 @@ func (pm *PeerManager) Loop() {
 
 func (pm *PeerManager) drainPeers() {
 	log.Printf(`draining DHT`)
-	seen := make(map[string]struct{})
+	seen := make(map[string]time.Time)
 
 	for r := range pm.d.PeersRequestResults {
 		for _, peers := range r {
 			for _, x := range peers {
 				addr := dht.DecodePeerAddress(x)
-				if _, ok := seen[addr]; !ok {
+				if t, ok := seen[addr]; !ok ||  t.Add(30 * time.Second).Before(time.Now()) {
 					pm.connectToPeer(addr)
+					seen[addr] = time.Now()
 				}
-				seen[addr] = struct{}{}
 			}
 		}
 	}
