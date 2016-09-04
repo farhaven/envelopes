@@ -79,13 +79,13 @@ func (f *Friend) String() string {
 	return fmt.Sprintf("%s: last message: %s, last seen: %s ago", f.name, f.msg, time.Now().Sub(f.lastSeen))
 }
 
-func (f *Friend) HandleMessage(m *BusMessage) {
+func (f *Friend) HandleMessage(m *BusMessage) error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
 	if f.msg != nil && f.msg.Seq >= m.Seq {
 		/* We've already seen this message */
-		return
+		return nil
 	}
 
 	f.msg = m
@@ -97,10 +97,9 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 		if err := json.Unmarshal([]byte(m.Payload), &ev); err != nil {
 			log.Printf(`can't unmarshal event payload: %s`, err)
 		}
-		log.Printf(`got an event: %v`, ev)
 
 		if err := f.pm.db.MergeEvent(ev); err != nil {
-			log.Printf(`can't merge event: %s`, err)
+			return err
 		}
 	case "hello":
 		f.pm.mtx.Lock()
@@ -112,6 +111,8 @@ func (f *Friend) HandleMessage(m *BusMessage) {
 	default:
 		log.Printf(`unhandled message: tgt: %s, src: %s, cmd: %s, payload: %v`, m.To, m.From, m.Cmd, m.Payload)
 	}
+
+	return nil
 }
 
 type PeerManager struct {
@@ -320,7 +321,9 @@ func (pm *PeerManager) Loop() {
 
 			if !ok {
 				log.Printf(`%s is a new friend!`, m.From)
-				pm.Publish(m.From, "hello", "")
+				if err := pm.Publish(m.From, "hello", ""); err != nil {
+					log.Printf(`can't send 'hello' message to bus: %s`, err)
+				}
 			}
 		}
 	}()
@@ -328,7 +331,9 @@ func (pm *PeerManager) Loop() {
 	go func() {
 		i := 0
 		for {
-			pm.Publish("*", "i'm alive", fmt.Sprintf("%d", i))
+			if err := pm.Publish("*", "i'm alive", fmt.Sprintf("%d", i)); err != nil {
+				log.Printf(`can't send "i'm alive" message to bus: %s`, err)
+			}
 			i++
 			time.Sleep(5 * time.Second)
 		}
@@ -340,7 +345,9 @@ func (pm *PeerManager) Loop() {
 			if err != nil {
 				log.Fatalf(`can't marshal event: %s`, err)
 			}
-			pm.Publish("*", "event", string(buf))
+			if err := pm.Publish("*", "event", string(buf)); err != nil {
+				log.Printf(`can't send event to bus: %s`, err)
+			}
 		}
 	}()
 
