@@ -142,6 +142,8 @@ func NewPeerManager(db *DB) *PeerManager {
 		log.Fatalf(`can't create BUS socket: %s`, err)
 	}
 	pm.bus.AddTransport(tlstcp.NewTransport())
+	pm.bus.SetOption(mangos.OptionRecvDeadline, 5 * time.Second)
+	pm.bus.SetOption(mangos.OptionSendDeadline, 5 * time.Second)
 
 	if pm.d, err = dht.New(conf); err != nil {
 		log.Fatalf(`can't create DHT: %s`, err)
@@ -375,16 +377,16 @@ func (pm *PeerManager) Loop() {
 
 func (pm *PeerManager) drainPeers() {
 	log.Printf(`draining DHT`)
-	seen := make(map[string]time.Time)
+	seen := make(map[string]struct{})
 
 	for r := range pm.d.PeersRequestResults {
 		for _, peers := range r {
 			for _, x := range peers {
 				addr := dht.DecodePeerAddress(x)
-				if t, ok := seen[addr]; !ok ||  t.Add(30 * time.Second).Before(time.Now()) {
+				if _, ok := seen[addr]; !ok {
 					pm.connectToPeer(addr)
-					seen[addr] = time.Now()
 				}
+				seen[addr] = struct{}{}
 			}
 		}
 	}
