@@ -207,7 +207,7 @@ func (d *DB) EnvelopeWithHistory(id uuid.UUID) (*Envelope, []Event, error) {
 }
 
 func (d *DB) MergeEvent(e Event) error {
-	log.Printf(`merging event %v`, e)
+	log.Printf(`merging event %v`, e.Id)
 
 	tx, err := d.db.Begin()
 	if err != nil {
