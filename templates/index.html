@@ -35,7 +35,9 @@
 				<tr>
 					<td><a href="/details?id={{ .Id }}">{{ .Name }}</a></td>
 					<form class="pure-form" action="/update" method="post">
-						<input type="hidden" name="env-id" value="{{ .Id }}">
+						<input type="hidden" name="env-id" value="{{ .Id }}"></input>
+						<input type="hidden" name="env-monthtarget" value="{{ prettyDisplay .MonthTarget }}"></input>
+						<input type="hidden" name="env-target" value="{{ prettyDisplay .Target }}"></input>
 						<td><input type="number" step="any" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
 						<td>{{ prettyDisplay .MonthTarget }}</td>
 						{{ if lt .MonthDelta 0 }}
