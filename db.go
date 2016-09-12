@@ -130,7 +130,12 @@ func (d *DB) DeleteEnvelope(id uuid.UUID) error {
 		Deleted: true,
 	}
 
-	d.Events <- evt
+	select {
+	case d.Events <- evt:
+		/* Nothing */
+	default:
+		/* Nothing */
+	}
 
 	return d.MergeEvent(evt)
 }
@@ -263,7 +268,12 @@ func (d *DB) UpdateEnvelope(id uuid.UUID, name string, dBalance, dTarget, dMonth
 		Deleted:     false,
 	}
 
-	d.Events <- evt
+	select {
+	case d.Events <- evt:
+		/* nothing */
+	default:
+		/* nothing */
+	}
 
 	return d.MergeEvent(evt)
 }
