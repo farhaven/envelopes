@@ -27,6 +27,7 @@
 						<td>Target</td>
 						<td>Delta (to target)</td>
 						<td>Delete</td>
+						<td>Spread</td>
 					</tr>
 				</thead>
 				<tbody>
@@ -49,6 +50,7 @@
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
 					</form>
 					<td><a class="pure-button button-danger" href="/delete?id={{ .Id }}">X</a></td>
+					<td><a class="pure-button button-danger" href="/spread?id={{ .Id }}">S</a></td>
 				</tr>
 				{{ end }}
 				</tbody>

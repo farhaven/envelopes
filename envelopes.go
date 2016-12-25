@@ -82,7 +82,7 @@ func handleUpdateRequest(db *DB, w http.ResponseWriter, r *http.Request) {
 		newMonthTarget = int(monthtgt * 100)
 	}
 
-	if err = db.UpdateEnvelope(id, name, newBalance, newTarget, newMonthTarget); err != nil {
+	if err = db.UpdateEnvelope(id, name, newBalance, newTarget, newMonthTarget, true); err != nil {
 		log.Printf(`can't update envelope %s: %s`, id, err)
 		http.Redirect(w, r, returnTo, http.StatusSeeOther)
 		return
@@ -121,6 +121,28 @@ func handleDetail(db *DB, w http.ResponseWriter, r *http.Request) {
 	if err := templ.ExecuteTemplate(w, "details.html", param); err != nil {
 		log.Printf(`error rendering details template: %s`, err)
 	}
+}
+
+func handleSpread(db *DB, w http.ResponseWriter, r *http.Request) {
+	log.Printf(`handling spread for id %s`, r.FormValue("id"))
+
+	id, err := uuid.Parse(r.FormValue("id"))
+	if err != nil {
+		log.Printf(`spread: can't parse ID: %s`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	s, err := db.PreviewSpread(id)
+	if err != nil {
+		log.Printf(`spread: something went wrong with the preview: %s`, err)
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	w.Header().Add("Content-Type", "text/plain")
+	w.Write([]byte(fmt.Sprintf("Spread of envelope %s looks like this:\n\n", r.FormValue("id"))))
+	w.Write([]byte(s))
 }
 
 func handleRequest(db *DB, w http.ResponseWriter, r *http.Request) {
@@ -197,6 +219,9 @@ func main() {
 	})
 	http.HandleFunc("/details", func(w http.ResponseWriter, r *http.Request) {
 		handleDetail(db, w, r)
+	})
+	http.HandleFunc("/spread", func(w http.ResponseWriter, r *http.Request) {
+		handleSpread(db, w, r)
 	})
 	http.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
 		handleDebug(pm, w, r)
