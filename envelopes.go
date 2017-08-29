@@ -156,23 +156,23 @@ func handleTx(db *DB, w http.ResponseWriter, r *http.Request) {
 			fallthrough
 		case `out`:
 			log.Printf(`tx %s`, dir)
-			params := struct{
-				Envelope *Envelope
+			params := struct {
+				Envelope  *Envelope
 				Direction string
 			}{
-				Envelope: env,
+				Envelope:  env,
 				Direction: dir,
 			}
 			if err := templ.ExecuteTemplate(w, "transfer_in.html", params); err != nil {
 				log.Printf(`error rendering details template: %s`, err)
 			}
 		default:
-			params := struct{
+			params := struct {
 				AllEnvelopes []*Envelope
-				This *Envelope
+				This         *Envelope
 			}{
 				AllEnvelopes: []*Envelope{},
-				This: env,
+				This:         env,
 			}
 			for _, e := range db.AllEnvelopes() {
 				if e.Id != env.Id {
@@ -195,11 +195,11 @@ func handleTx(db *DB, w http.ResponseWriter, r *http.Request) {
 		}
 		switch dir {
 		case `in`:
-			if err = db.UpdateEnvelopeBalance(id, int(amount * 100)); err != nil {
+			if err = db.UpdateEnvelopeBalance(id, int(amount*100)); err != nil {
 				log.Printf(`can't update balance: %s`, err)
 			}
 		case `out`:
-			if err = db.UpdateEnvelopeBalance(id, -int(amount * 100)); err != nil {
+			if err = db.UpdateEnvelopeBalance(id, -int(amount*100)); err != nil {
 				log.Printf(`can't update balance: %s`, err)
 			}
 		default:
@@ -209,9 +209,9 @@ func handleTx(db *DB, w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, "/", http.StatusSeeOther)
 				return
 			}
-			if err = db.UpdateEnvelopeBalance(destId, int(amount * 100)); err != nil {
+			if err = db.UpdateEnvelopeBalance(destId, int(amount*100)); err != nil {
 				log.Printf(`can't update balance: %s`, err)
-			} else if err = db.UpdateEnvelopeBalance(id, -int(amount * 100)); err != nil {
+			} else if err = db.UpdateEnvelopeBalance(id, -int(amount*100)); err != nil {
 				log.Printf(`can't update balance: %s`, err)
 			}
 			http.Redirect(w, r, fmt.Sprintf("/details?id=%s", destId), http.StatusSeeOther)
