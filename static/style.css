@@ -19,6 +19,14 @@ input[type="number"] {
 	background: rgb(202, 60, 60);
 }
 
+.button-warning {
+	background: rgb(223, 117, 20); /* this is an orange */
+}
+
+.button-secondary {
+	background: rgb(66, 184, 221); /* this is a light blue */
+}
+
 table#envelopes {
 	font-size: 0.9em;
 }
@@ -29,4 +37,8 @@ span.delta-warn {
 
 span.delta-ok {
 	color: #072;
+}
+
+select {
+	height: 100%;
 }

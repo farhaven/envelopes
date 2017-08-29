@@ -245,29 +245,55 @@ func (d *DB) MergeEvent(e Event) error {
 	return tx.Commit()
 }
 
-func (d *DB) UpdateEnvelope(id uuid.UUID, name string, dBalance, dTarget, dMonthTarget int, makeRelative bool) error {
+func (d *DB) UpdateEnvelopeMeta(id uuid.UUID, name string, newTarget, newMonthTarget int) error {
 	env, err := d.Envelope(id)
 	if err != nil {
 		return err
 	}
 
-	if makeRelative {
-		/* Make parameters relative */
-		dBalance -= env.Balance
-		dTarget -= env.Target
-		dMonthTarget -= env.MonthTarget
+	if name == env.Name && newTarget == 0 && newMonthTarget == 0 {
+		return nil
 	}
 
-	log.Printf(`dB: %d dT: %d dMT: %d`, dBalance, dTarget, dMonthTarget)
+	log.Printf(`dB update meta: dT: %d dMT: %d`, newTarget, newMonthTarget)
 
 	evt := Event{
 		EnvelopeId:  env.Id,
 		Id:          uuid.New(),
 		Date:        time.Now().String(),
 		Name:        name,
+		Balance:     0,
+		Target:      newTarget - env.Target,
+		MonthTarget: newMonthTarget - env.MonthTarget,
+		Deleted:     false,
+	}
+
+	select {
+	case d.Events <- evt:
+		/* nothing */
+	default:
+		/* nothing */
+	}
+
+	return d.MergeEvent(evt)
+}
+
+func (d *DB) UpdateEnvelopeBalance(id uuid.UUID, dBalance int) error {
+	env, err := d.Envelope(id)
+	if err != nil {
+		return err
+	}
+
+	log.Printf(`dB update balance: %d`, dBalance)
+
+	evt := Event{
+		EnvelopeId:  env.Id,
+		Id:          uuid.New(),
+		Date:        time.Now().String(),
+		Name:        env.Name,
 		Balance:     dBalance,
-		Target:      dTarget,
-		MonthTarget: dMonthTarget,
+		Target:      0,
+		MonthTarget: 0,
 		Deleted:     false,
 	}
 
@@ -309,10 +335,10 @@ func (d *DB) PreviewSpread(id uuid.UUID) (string, error) {
 		res += fmt.Sprintf("% 25s: spread pct: % 10.02f%%, spread delta: % 10.02f, ", e.Name, pct*100, amount/100)
 		res += fmt.Sprintf("balance: % 10.02f, new: % 10.02f\n", float64(e.Balance)/100, (float64(e.Balance)+amount)/100)
 
-		if err := d.UpdateEnvelope(e.Id, e.Name, int(amount), 0, 0, false); err != nil {
+		if err := d.UpdateEnvelopeBalance(e.Id, int(amount)); err != nil {
 			return "", err
 		}
-		if err := d.UpdateEnvelope(id, toSpread.Name, int(-amount), 0, 0, false); err != nil {
+		if err := d.UpdateEnvelopeBalance(id, int(-amount)); err != nil {
 			return "", err
 		}
 	}

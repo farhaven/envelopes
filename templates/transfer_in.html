@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" href="/static/pure/pure-min.css">
+		<link rel="stylesheet" href="/static/pure/grids-responsive-min.css">
+		<link rel="stylesheet" href="/static/style.css">
+		<title>📩 Envelopes: Transfer balance {{ .Direction }} {{ .Envelope.Name }}</title>
+	</head>
+	<body>
+		<div class="e-container">
+			<h1>Transfer balance {{ .Direction }} {{ .Envelope.Name }}</h1>
+			<form class="pure-form pure-form-aligned" action="/tx" method="post">
+				<fieldset>
+					<input type="hidden" name="id" value="{{ .Envelope.Id }}">
+					<input type="hidden" name="dir" value="{{ .Direction }}">
+
+					<div class="pure-control-group">
+						<label for="name">Name</label>
+						<input readonly id="name" type="text" value="{{ .Envelope.Name }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="monthtarget">Monthly Target</label>
+						<input readonly id="monthtarget" type="number" value="{{ prettyDisplay .Envelope.MonthTarget }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="target">Target</label>
+						<input readonly id="target" type="number" value="{{ prettyDisplay .Envelope.Target }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="balance">Amount</label>
+						<input id="balance" type="number" step="any" name="amount" value="0">
+						<span class="pure-form-message-inline">Current Balance: {{ prettyDisplay .Envelope.Balance }}</span>
+					</div>
+
+					<div class="pure-controls">
+						<button type="submit" class="pure-button pure-button-primary">Change</button>
+					</div>
+				</fieldset>
+			</form>
+		</div>
+		<div class="e-container">
+			<a class="pure-button" href="/#e-{{ .Envelope.Id }}">Back</a>
+		</div>
+	</body>
+</html>

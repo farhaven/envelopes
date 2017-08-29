@@ -28,6 +28,9 @@
 						<td>Delta (to target)</td>
 						<td>Delete</td>
 						<td>Spread</td>
+						<td>TX In</td>
+						<td>TX</td>
+						<td>TX Out</td>
 					</tr>
 				</thead>
 				<tbody>
@@ -39,7 +42,7 @@
 						<input type="hidden" name="env-id" value="{{ .Id }}"></input>
 						<input type="hidden" name="env-monthtarget" value="{{ prettyDisplay .MonthTarget }}"></input>
 						<input type="hidden" name="env-target" value="{{ prettyDisplay .Target }}"></input>
-						<td><input type="number" step="any" name="env-balance" value="{{ prettyDisplay .Balance }}"></td>
+						<td>{{ prettyDisplay .Balance }}</td>
 						<td>{{ prettyDisplay .MonthTarget }}</td>
 						{{ if lt .MonthDelta 0 }}
 						<td><span class="delta-warn">{{ prettyDisplay .MonthDelta }}</span></td>
@@ -50,7 +53,10 @@
 						<td><span class="{{index $delta 0}}">{{index $delta 1}}</td>
 					</form>
 					<td><a class="pure-button button-danger" href="/delete?id={{ .Id }}">X</a></td>
-					<td><a class="pure-button button-danger" href="/spread?id={{ .Id }}">S</a></td>
+					<td><a class="pure-button button-warning" href="/spread?id={{ .Id }}">S</a></td>
+					<td><a class="pure-button" href="/tx?id={{ .Id }}&dir=in">↦</a></td>
+					<td><a class="pure-button button-secondary" href="/tx?id={{ .Id }}&dir=inout">↹</a></td>
+					<td><a class="pure-button" href="/tx?id={{ .Id }}&dir=out">↤</a></td>
 				</tr>
 				{{ end }}
 				</tbody>
@@ -60,7 +66,6 @@
 			<form class="pure-form" action="/update" method="post">
 				<fieldset>
 					<input type="text" size="13" name="env-name" placeholder="Name" autofocus>
-					<input type="number" step="any" name="env-balance" placeholder="Balance">
 					<input type="number" step="any" name="env-monthtarget" placeholder="Monthly Target">
 					<button type="submit" class="pure-button pure-button-primary">Add new envelope</button>
 				</fieldset>
