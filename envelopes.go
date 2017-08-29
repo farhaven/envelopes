@@ -205,7 +205,7 @@ func main() {
 	}()
 
 	pm := NewPeerManager(db)
-	go pm.Loop()
+	// go pm.Loop()
 
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
