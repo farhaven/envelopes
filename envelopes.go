@@ -91,10 +91,9 @@ func handleUpdateRequest(db *DB, w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, returnTo, http.StatusSeeOther)
 }
 
-func handleDebug(pm *PeerManager, w http.ResponseWriter, r *http.Request) {
+func handleDebug(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
-	w.Write([]byte("Peer manager stats:\r\n\r\n"))
-	w.Write([]byte(pm.String()))
+	w.Write([]byte("Hic sunt dracones\r\n\r\n"))
 }
 
 func handleDetail(db *DB, w http.ResponseWriter, r *http.Request) {
@@ -204,9 +203,6 @@ func main() {
 		}
 	}()
 
-	pm := NewPeerManager(db)
-	// go pm.Loop()
-
 	http.Handle("/static/", http.FileServer(http.Dir(".")))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handleRequest(db, w, r)
@@ -224,7 +220,7 @@ func main() {
 		handleSpread(db, w, r)
 	})
 	http.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
-		handleDebug(pm, w, r)
+		handleDebug(w, r)
 	})
 	err = http.ListenAndServe("127.0.0.1:8081", nil)
 	if err != nil {
