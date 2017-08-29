@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
@@ -18,6 +19,7 @@ type Event struct {
 	Target      int
 	MonthTarget int
 	Deleted     bool
+	Comment     string
 }
 
 type Envelope struct {
@@ -80,7 +82,7 @@ func (d *DB) setup() error {
 		(id UUID PRIMARY KEY,
 		 envelope UUID, date DATETIME, name STRING,
 		 balance INTEGER, target INTEGER, monthtarget INTEGER,
-		 deleted BOOLEAN,
+		 deleted BOOLEAN, comment STRING,
 		 FOREIGN KEY(envelope) REFERENCES envelopes(id))`); err != nil {
 		return err
 	}
@@ -184,7 +186,7 @@ func (d *DB) EnvelopeWithHistory(id uuid.UUID) (*Envelope, []Event, error) {
 	}
 
 	rows, err := tx.Query(`
-		SELECT id, envelope, date, name, balance, target, monthtarget, deleted
+		SELECT id, envelope, date, name, balance, target, monthtarget, comment, deleted
 		FROM history
 		WHERE envelope = $1`, id)
 	if err != nil {
@@ -194,7 +196,7 @@ func (d *DB) EnvelopeWithHistory(id uuid.UUID) (*Envelope, []Event, error) {
 
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.Id, &e.EnvelopeId, &e.Date, &e.Name, &e.Balance, &e.Target, &e.MonthTarget, &e.Deleted); err != nil {
+		if err := rows.Scan(&e.Id, &e.EnvelopeId, &e.Date, &e.Name, &e.Balance, &e.Target, &e.MonthTarget, &e.Comment, &e.Deleted); err != nil {
 			log.Printf(`can't scan event %s: %s`, e.Id, err)
 		}
 		if e.Deleted {
@@ -221,9 +223,9 @@ func (d *DB) MergeEvent(e Event) error {
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO history (id, envelope, name, balance, target, monthtarget, deleted, date)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, datetime('now'))`,
-		e.Id, e.EnvelopeId, e.Name, e.Balance, e.Target, e.MonthTarget, e.Deleted)
+		INSERT INTO history (id, envelope, name, balance, target, monthtarget, comment, deleted, date)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, datetime('now'))`,
+		e.Id, e.EnvelopeId, e.Name, e.Balance, e.Target, e.MonthTarget, e.Comment, e.Deleted)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -265,6 +267,7 @@ func (d *DB) UpdateEnvelopeMeta(id uuid.UUID, name string, newTarget, newMonthTa
 		Target:      newTarget - env.Target,
 		MonthTarget: newMonthTarget - env.MonthTarget,
 		Deleted:     false,
+		Comment:     "",
 	}
 
 	select {
@@ -277,7 +280,7 @@ func (d *DB) UpdateEnvelopeMeta(id uuid.UUID, name string, newTarget, newMonthTa
 	return d.MergeEvent(evt)
 }
 
-func (d *DB) UpdateEnvelopeBalance(id uuid.UUID, dBalance int) error {
+func (d *DB) UpdateEnvelopeBalance(id uuid.UUID, dBalance int, comment string) error {
 	env, err := d.Envelope(id)
 	if err != nil {
 		return err
@@ -294,6 +297,7 @@ func (d *DB) UpdateEnvelopeBalance(id uuid.UUID, dBalance int) error {
 		Target:      0,
 		MonthTarget: 0,
 		Deleted:     false,
+		Comment:     comment,
 	}
 
 	select {
@@ -330,10 +334,10 @@ func (d *DB) Spread(id uuid.UUID) error {
 		pct := float64(e.MonthTarget) / float64(totalMonthTarget)
 		amount := float64(toSpread.Balance) * pct
 
-		if err := d.UpdateEnvelopeBalance(e.Id, int(amount)); err != nil {
+		if err := d.UpdateEnvelopeBalance(e.Id, int(amount), fmt.Sprintf(`Spread from %s`, toSpread.Name)); err != nil {
 			return err
 		}
-		if err := d.UpdateEnvelopeBalance(id, int(-amount)); err != nil {
+		if err := d.UpdateEnvelopeBalance(id, int(-amount), fmt.Sprintf(`Spread to %s`, e.Name)); err != nil {
 			return err
 		}
 	}

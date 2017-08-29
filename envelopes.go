@@ -195,11 +195,11 @@ func handleTx(db *DB, w http.ResponseWriter, r *http.Request) {
 		}
 		switch dir {
 		case `in`:
-			if err = db.UpdateEnvelopeBalance(id, int(amount*100)); err != nil {
+			if err = db.UpdateEnvelopeBalance(id, int(amount*100), r.FormValue(`comment`)); err != nil {
 				log.Printf(`can't update balance: %s`, err)
 			}
 		case `out`:
-			if err = db.UpdateEnvelopeBalance(id, -int(amount*100)); err != nil {
+			if err = db.UpdateEnvelopeBalance(id, -int(amount*100), r.FormValue(`comment`)); err != nil {
 				log.Printf(`can't update balance: %s`, err)
 			}
 		default:
@@ -209,9 +209,31 @@ func handleTx(db *DB, w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, "/", http.StatusSeeOther)
 				return
 			}
-			if err = db.UpdateEnvelopeBalance(destId, int(amount*100)); err != nil {
+
+			dest, err := db.Envelope(destId)
+			if err != nil {
+				log.Printf(`can't get destination %s: %s`, destId, err)
+				http.Redirect(w, r, "/", http.StatusSeeOther)
+				return
+			}
+			src, err := db.Envelope(id)
+			if err != nil {
+				log.Printf(`can't get source %s: %s`, destId, err)
+				http.Redirect(w, r, "/", http.StatusSeeOther)
+				return
+			}
+
+			srccmmt := fmt.Sprintf("From %s", src.Name)
+			destcmmt := fmt.Sprintf(`To %s`, dest.Name)
+			if r.FormValue(`comment`) != "" {
+				cmmt := fmt.Sprintf(": %s", r.FormValue(`comment`))
+				srccmmt += cmmt
+				destcmmt += cmmt
+			}
+
+			if err = db.UpdateEnvelopeBalance(destId, int(amount*100), srccmmt); err != nil {
 				log.Printf(`can't update balance: %s`, err)
-			} else if err = db.UpdateEnvelopeBalance(id, -int(amount*100)); err != nil {
+			} else if err = db.UpdateEnvelopeBalance(id, -int(amount*100), destcmmt); err != nil {
 				log.Printf(`can't update balance: %s`, err)
 			}
 			http.Redirect(w, r, fmt.Sprintf("/details?id=%s", destId), http.StatusSeeOther)

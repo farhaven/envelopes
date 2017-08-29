@@ -59,6 +59,7 @@
 						<td>Name</td>
 						<td>Date</td>
 						<td>Deleted</td>
+						<td>Comment</td>
 					</tr>
 				</thead>
 				<tbody>
@@ -96,6 +97,7 @@
 						{{ else }}
 						<td>No</td>
 						{{ end }}
+						<td>{{ .Comment }}</td>
 					</tr>
 					{{ end }}
 				</tbody>
