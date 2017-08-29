@@ -106,10 +106,15 @@ func handleDetail(db *DB, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	events_rev := []Event{}
+	for idx := len(events) - 1; idx >= 0; idx-- {
+		events_rev = append(events_rev, events[idx])
+	}
+
 	param := struct {
 		Envelope *Envelope
 		Events   []Event
-	}{e, events}
+	}{e, events_rev}
 
 	if err := templ.ExecuteTemplate(w, "details.html", param); err != nil {
 		log.Printf(`error rendering details template: %s`, err)
