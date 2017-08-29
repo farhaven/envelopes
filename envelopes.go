@@ -232,16 +232,13 @@ func handleSpread(db *DB, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, err := db.PreviewSpread(id)
-	if err != nil {
-		log.Printf(`spread: something went wrong with the preview: %s`, err)
+	if err := db.Spread(id); err != nil {
+		log.Printf(`something went wrong with the spread`, err)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 
-	w.Header().Add("Content-Type", "text/plain")
-	w.Write([]byte(fmt.Sprintf("Spread of envelope %s looks like this:\n\n", r.FormValue("id"))))
-	w.Write([]byte(s))
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func handleRequest(db *DB, w http.ResponseWriter, r *http.Request) {

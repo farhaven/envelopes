@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"time"
 
@@ -307,12 +306,12 @@ func (d *DB) UpdateEnvelopeBalance(id uuid.UUID, dBalance int) error {
 	return d.MergeEvent(evt)
 }
 
-func (d *DB) PreviewSpread(id uuid.UUID) (string, error) {
+func (d *DB) Spread(id uuid.UUID) error {
 	es := d.AllEnvelopes()
 	toSpread, err := d.Envelope(id)
 
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	totalMonthTarget := int(0)
@@ -323,7 +322,6 @@ func (d *DB) PreviewSpread(id uuid.UUID) (string, error) {
 		totalMonthTarget += e.MonthTarget
 	}
 
-	res := fmt.Sprintf("Total Delta: %.02f, Spread balance: %.02f\n\n", float64(totalMonthTarget)/100, float64(toSpread.Balance)/100)
 	for _, e := range es {
 		if e.Id == id || e.MonthTarget == 0 {
 			continue
@@ -332,16 +330,13 @@ func (d *DB) PreviewSpread(id uuid.UUID) (string, error) {
 		pct := float64(e.MonthTarget) / float64(totalMonthTarget)
 		amount := float64(toSpread.Balance) * pct
 
-		res += fmt.Sprintf("% 25s: spread pct: % 10.02f%%, spread delta: % 10.02f, ", e.Name, pct*100, amount/100)
-		res += fmt.Sprintf("balance: % 10.02f, new: % 10.02f\n", float64(e.Balance)/100, (float64(e.Balance)+amount)/100)
-
 		if err := d.UpdateEnvelopeBalance(e.Id, int(amount)); err != nil {
-			return "", err
+			return err
 		}
 		if err := d.UpdateEnvelopeBalance(id, int(-amount)); err != nil {
-			return "", err
+			return err
 		}
 	}
 
-	return res, nil
+	return nil
 }
