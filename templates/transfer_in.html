@@ -6,11 +6,11 @@
 		<link rel="stylesheet" href="/static/pure/pure-min.css">
 		<link rel="stylesheet" href="/static/pure/grids-responsive-min.css">
 		<link rel="stylesheet" href="/static/style.css">
-		<title>📩 Envelopes: Transfer balance {{ .Direction }} {{ .Envelope.Name }}</title>
+		<title>📩 Envelopes: Transfer balance {{ if eq .Direction "in" }}into{{ else }}out of{{ end }} {{ .Envelope.Name }}</title>
 	</head>
 	<body>
 		<div class="e-container">
-			<h1>Transfer balance {{ .Direction }} {{ .Envelope.Name }}</h1>
+			<h1>Transfer balance {{ if eq .Direction "in" }}into{{else}}out of{{end}} {{ .Envelope.Name }}</h1>
 			<form class="pure-form pure-form-aligned" action="/tx" method="post">
 				<fieldset>
 					<input type="hidden" name="id" value="{{ .Envelope.Id }}">
