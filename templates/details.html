@@ -11,6 +11,45 @@
 	<body>
 		<div class="e-container">
 			<h1>Details for Envelope {{ .Envelope.Name }}</h1>
+			<div class="e-box">
+				<span>
+					Transfer:
+					<a class="pure-button" href="/tx?id={{ .Envelope.Id }}&dir=in">↦</a>
+					<a class="pure-button button-secondary" href="/tx?id={{ .Envelope.Id }}&dir=inout">↹</a>
+					<a class="pure-button" href="/tx?id={{ .Envelope.Id }}&dir=out">↤</a>
+				</span>
+			</div>
+			<form class="pure-form pure-form-aligned" action="/update" method="post">
+				<fieldset>
+					<legend>Properties</legend>
+					<input type="hidden" name="env-id" value="{{ .Envelope.Id }}">
+					<input type="hidden" name="env-return" value="{{ .Envelope.Id }}">
+
+					<div class="pure-control-group">
+						<label for="name">Name</label>
+						<input id="name" type="text" name="env-name" value="{{ .Envelope.Name }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="monthtarget">Monthly Target</label>
+						<input id="monthtarget" type="number" step="any" name="env-monthtarget" value="{{ prettyDisplay .Envelope.MonthTarget }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="target">Target</label>
+						<input id="target" type="number" step="any" name="env-target" value="{{ prettyDisplay .Envelope.Target }}">
+					</div>
+
+					<div class="pure-control-group">
+						<label for="balance">Balance</label>
+						<input id="balance" type="number" readonly value="{{ prettyDisplay .Envelope.Balance }}">
+					</div>
+
+					<div class="pure-controls">
+						<button type="submit" class="pure-button pure-button-primary">Change</button>
+					</div>
+				</fieldset>
+			</form>
 			<table class="pure-table">
 				<thead>
 					<tr>
@@ -61,37 +100,6 @@
 					{{ end }}
 				</tbody>
 			</table>
-			<form class="pure-form pure-form-aligned" action="/update" method="post">
-				<fieldset>
-					<legend>Properties</legend>
-					<input type="hidden" name="env-id" value="{{ .Envelope.Id }}">
-					<input type="hidden" name="env-return" value="{{ .Envelope.Id }}">
-
-					<div class="pure-control-group">
-						<label for="name">Name</label>
-						<input id="name" type="text" name="env-name" value="{{ .Envelope.Name }}">
-					</div>
-
-					<div class="pure-control-group">
-						<label for="monthtarget">Monthly Target</label>
-						<input id="monthtarget" type="number" step="any" name="env-monthtarget" value="{{ prettyDisplay .Envelope.MonthTarget }}">
-					</div>
-
-					<div class="pure-control-group">
-						<label for="target">Target</label>
-						<input id="target" type="number" step="any" name="env-target" value="{{ prettyDisplay .Envelope.Target }}">
-					</div>
-
-					<div class="pure-control-group">
-						<label for="balance">Balance</label>
-						<input id="balance" type="number" readonly value="{{ prettyDisplay .Envelope.Balance }}">
-					</div>
-
-					<div class="pure-controls">
-						<button type="submit" class="pure-button pure-button-primary">Change</button>
-					</div>
-				</fieldset>
-			</form>
 		</div>
 		<div class="e-container">
 			<a class="pure-button" href="/#e-{{ .Envelope.Id }}">Back</a>
